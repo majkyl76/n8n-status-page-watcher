@@ -29,6 +29,30 @@ test('AC12: sticky note text passes the copy checks', () => {
   assert.deepEqual(issues, []);
 });
 
+test('AC12: lint flags the noun "license" (review F3) but not the verb "to license"', () => {
+  const nounCases = [
+    'This project is released under the MIT license.',
+    'See the license for details.',
+    'Our license terms apply to everyone.',
+    "The software's license is permissive.",
+    'An expired license must be renewed.',
+  ];
+  for (const text of nounCases) {
+    const issues = lintText('test', text);
+    assert.ok(issues.some((i) => i.includes('license')), 'should flag noun use: ' + text);
+  }
+
+  const verbCases = [
+    'You may license this software to others.',
+    'Vendors license their data to third parties.',
+    'We plan to license the technology next year.',
+  ];
+  for (const text of verbCases) {
+    const issues = lintText('test', text);
+    assert.deepEqual(issues.filter((i) => i.includes('license')), [], 'should not flag verb use: ' + text);
+  }
+});
+
 function statesLimits(label, text) {
   const t = text.toLowerCase();
   assert.ok(/statuspage v2/.test(t), label + ' names Statuspage v2 support');
