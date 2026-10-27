@@ -244,6 +244,27 @@ async function main() {
     r = await runPhase(w.id, 'steady');
     check('steady: quiet again', () => assert.equal(r.mails.length, 0));
 
+    // ---- a second copy pointed at a closed port: real network-error items from the HTTP node ----
+    await api(`/workflows/${w.id}/deactivate`, { method: 'POST', body: '{}' });
+    const dead = JSON.parse(JSON.stringify(wf));
+    for (const n of dead.nodes) {
+      if (n.type === 'n8n-nodes-base.set') {
+        const set = (k, v) => { n.parameters.assignments.assignments.find((a) => a.name === k).value = v; };
+        set('pages', 'Dead host | http://127.0.0.1:9');
+        set('failuresBeforeAlert', 1);
+      }
+    }
+    const w2 = await api('/workflows', { method: 'POST', body: JSON.stringify({ name: 'e2e dead ' + wf.name, nodes: dead.nodes, connections: dead.connections, settings: dead.settings }) });
+    created.workflow2 = w2.id;
+    await api(`/workflows/${w2.id}/activate`, { method: 'POST', body: '{}' });
+    r = await runPhase(w2.id, 'connection-refused');
+    check('connection refused: run still succeeds and one "unreachable" email is sent', () => {
+      assert.equal(r.exec.status, 'success');
+      assert.equal(r.mails.length, 1);
+      assert.match(r.mails[0].subject, /Dead host/);
+      assert.match(r.mails[0].subject, /unreachable/i);
+    });
+
     mkdirSync(join(root, 'samples'), { recursive: true });
     writeFileSync(join(root, 'samples/e2e-emails.txt'),
       Object.entries(samples).map(([k, m]) => `===== ${k} =====\nSubject: ${m.subject}\nTo: ${m.to}\nFrom: ${m.from}\n\n${m.text}`).join('\n\n'));
@@ -251,6 +272,10 @@ async function main() {
     if (created.workflow) {
       await api(`/workflows/${created.workflow}/deactivate`, { method: 'POST', body: '{}' }).catch(() => {});
       await api(`/workflows/${created.workflow}`, { method: 'DELETE' }).catch(() => {});
+    }
+    if (created.workflow2) {
+      await api(`/workflows/${created.workflow2}/deactivate`, { method: 'POST', body: '{}' }).catch(() => {});
+      await api(`/workflows/${created.workflow2}`, { method: 'DELETE' }).catch(() => {});
     }
     if (created.credential) await api(`/credentials/${created.credential}`, { method: 'DELETE' }).catch(() => {});
     serverA.close(); serverB.close(); sink.close();
