@@ -189,7 +189,7 @@ async function main() {
     check('new: one email for the new incident', () => {
       assert.equal(r.mails.length, 1);
       const m = r.mails[0];
-      assert.match(m.subject, /^\[Status\] Mock A: 1 new event/);
+      assert.match(m.subject, /^\[Status\] Mock A: new incident - /);
       assert.ok(m.to.includes('me@example.com') && m.from.includes('alerts@example.com'));
       assert.match(m.text, /https:\/\/stspg\.io\/e2e1/);
       assert.match(m.text, /API/);
@@ -212,14 +212,14 @@ async function main() {
     check('update: one email for the update', () => {
       assert.equal(r.mails.length, 1);
       assert.match(r.mails[0].text, /We found the cause/);
-      assert.match(r.mails[0].text, /update/i);
+      assert.match(r.mails[0].subject, /^\[Status\] Mock A: update - /);
     });
 
     mockA.body.incidents = [incident('resolved', 'major', 5000, 'Errors <script>alert(1)</script> & "quotes"', 'All fixed.')];
     r = await runPhase(w.id, 'resolved');
     check('resolved: one resolved email', () => {
       assert.equal(r.mails.length, 1);
-      assert.match(r.mails[0].text, /resolved/i);
+      assert.match(r.mails[0].subject, /^\[Status\] Mock A: resolved - /);
     });
     samples.resolved = r.mails[0];
     r = await runPhase(w.id, 'resolved-again');
@@ -232,7 +232,7 @@ async function main() {
     check('outage 2 of 2: one "unreachable" email for Mock A only', () => {
       assert.equal(r.mails.length, 1);
       assert.match(r.mails[0].subject, /Mock A/);
-      assert.match(r.mails[0].subject + r.mails[0].text, /unreachable|not reachable|cannot be reached|could not be reached/i);
+      assert.match(r.mails[0].subject, /^\[Status\] Mock A: page unreachable - /);
     });
     samples.unreachable = r.mails[0];
     r = await runPhase(w.id, 'outage-3');
@@ -241,7 +241,7 @@ async function main() {
     r = await runPhase(w.id, 'recovery');
     check('recovery: one "recovered" email and no repeated old incident', () => {
       assert.equal(r.mails.length, 1);
-      assert.match(r.mails[0].subject + r.mails[0].text, /recover|back/i);
+      assert.match(r.mails[0].subject, /^\[Status\] Mock A: page recovered - /);
     });
     samples.recovered = r.mails[0];
     r = await runPhase(w.id, 'steady');
