@@ -2,38 +2,38 @@
 > n8n-status-page-watcher@1.0.0 e2e
 > node scripts/e2e.mjs
 
-imported workflow CC7zvP5xFLyWV80s with 13 nodes
-activated, schedule every 10s; mock A :43903, mock B (real GitHub fixture) :42745, SMTP sink :39375
--- phase baseline: execution 4143 success (1028 ms), emails=0
+imported workflow E8Lb9tNAjPiFkjFd with 13 nodes
+activated, schedule every 10s; mock A :35199, mock B (real GitHub fixture) :46025, SMTP sink :36049
+-- phase baseline: execution 4222 success (1057 ms), emails=0
 PASS baseline: execution succeeded and both pages were fetched
 PASS baseline: no emails (only resolved history on the real fixture, nothing on mock A)
--- phase new: execution 4144 success (1082 ms), emails=1
+-- phase new: execution 4223 success (1086 ms), emails=1
      subject: [Status] Mock A: new incident - Errors <script>alert(1)</script> & "quotes"
 PASS new: one email for the new incident
 PASS new: HTML body escapes hostile incident text
--- phase nochange: execution 4145 success (1036 ms), emails=0
+-- phase nochange: execution 4224 success (1036 ms), emails=0
 PASS nochange: static data persisted, nothing repeated
--- phase update: execution 4146 success (1086 ms), emails=1
+-- phase update: execution 4225 success (1103 ms), emails=1
      subject: [Status] Mock A: update - Errors <script>alert(1)</script> & "quotes"
 PASS update: one email for the update
--- phase resolved: execution 4147 success (1093 ms), emails=1
+-- phase resolved: execution 4226 success (1081 ms), emails=1
      subject: [Status] Mock A: resolved - Errors <script>alert(1)</script> & "quotes"
 PASS resolved: one resolved email
--- phase resolved-again: execution 4148 success (1030 ms), emails=0
+-- phase resolved-again: execution 4227 success (1046 ms), emails=0
 PASS resolved-again: nothing repeated
--- phase outage-1: execution 4149 success (5048 ms), emails=0
+-- phase outage-1: execution 4228 success (5045 ms), emails=0
 PASS outage 1 of 2: no email yet, other page still checked
--- phase outage-2: execution 4150 success (5093 ms), emails=1
+-- phase outage-2: execution 4229 success (5117 ms), emails=1
      subject: [Status] Mock A: page unreachable - Status page unreachable
 PASS outage 2 of 2: one "unreachable" email for Mock A only
--- phase outage-3: execution 4151 success (5044 ms), emails=0
+-- phase outage-3: execution 4230 success (5110 ms), emails=0
 PASS outage 3: still down, no repeat
--- phase recovery: execution 4152 success (1078 ms), emails=1
+-- phase recovery: execution 4231 success (1086 ms), emails=1
      subject: [Status] Mock A: page recovered - Status page reachable again
 PASS recovery: one "recovered" email and no repeated old incident
--- phase steady: execution 4153 success (1038 ms), emails=0
+-- phase steady: execution 4232 success (1026 ms), emails=0
 PASS steady: quiet again
--- phase connection-refused: execution 4154 success (5141 ms), emails=2
+-- phase connection-refused: execution 4233 success (5143 ms), emails=2
      subject: [Status] Dead host: page unreachable - Status page unreachable
      subject: [Status] HTML 404: page unreachable - Status page unreachable
 PASS closed port and HTML 404 body: run still succeeds and each page gets one "unreachable" email
