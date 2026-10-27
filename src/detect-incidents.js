@@ -107,7 +107,7 @@ function truncateHtml(value, max) {
   if (lastOpen > lastClose) cut = cut.slice(0, lastOpen);
   const lastAmp = cut.lastIndexOf('&');
   if (lastAmp !== -1 && cut.indexOf(';', lastAmp) === -1) cut = cut.slice(0, lastAmp);
-  return cut;
+  return trimLoneSurrogate(cut);
 }
 
 function uniqueNames(names) {
@@ -330,6 +330,7 @@ for (let i = 0; i < pageItems.length; i++) {
     staticData.pages[pageKey] = ps;
   }
   if (!ps.incidents || typeof ps.incidents !== 'object') ps.incidents = emptyMap();
+  if (ps.failureAlerted !== true) ps.failureAlerted = false;
 
   const resp = responses[i] ? responses[i].json : undefined;
 
@@ -353,7 +354,8 @@ for (let i = 0; i < pageItems.length; i++) {
   const events = [];
 
   if (failure) {
-    ps.failures = (ps.failures || 0) + 1;
+    const prevFailures = Number(ps.failures);
+    ps.failures = (Number.isFinite(prevFailures) ? prevFailures : 0) + 1;
     if (ps.failures >= settings.failuresBeforeAlert && !ps.failureAlerted) {
       ps.failureAlerted = true;
       events.push(unreachableEvent(ps.failures, origin));
@@ -379,10 +381,10 @@ for (let i = 0; i < pageItems.length; i++) {
       const passes = impactRank(impact) >= impactRank(settings.minimumImpact) && componentMatch(incident, settings.componentKeywords);
 
       const stored = Object.hasOwn(ps.incidents, id) ? ps.incidents[id] : undefined;
-      // A null or otherwise non-object stored record (an old/different schema,
-      // or hand-edited state) is treated like a first-seen incident instead of
-      // crashing the whole run (review 2 F2).
-      const prev = stored && typeof stored === 'object' ? stored : undefined;
+      // A null, array or otherwise non-plain-object stored record (an old/different
+      // schema, or hand-edited state) is treated like a first-seen incident instead
+      // of crashing the whole run (review 2 F2, review 3 note).
+      const prev = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : undefined;
 
       if (prev === undefined) {
         // First time we have seen this incident id.
