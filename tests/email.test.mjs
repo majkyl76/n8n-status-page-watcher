@@ -78,6 +78,30 @@ test('AC17: update text in the email is at most 500 characters including the ell
   }
 });
 
+test('AC17: truncating a long title never leaves a lone (split) surrogate in the subject', () => {
+  // An emoji is a surrogate pair (two UTF-16 code units). If the 149-char cut
+  // lands between the halves, a naive slice leaves a dangling half-character.
+  // Sweep pads so the pair straddles the cut at every offset.
+  for (let pad = 110; pad <= 160; pad++) {
+    const name = 'z'.repeat(pad) + '\u{1F600}\u{1F600}\u{1F600}\u{1F600}';
+    const body = { page: {}, incidents: [incident({ id: 'o1', name, status: 'investigating', impact: 'major' })] };
+    const email = detectOne(body, defaultSettings({ minimumImpact: 'none' }));
+    assert.ok(email.subject.length <= 149, 'pad ' + pad + ' length ' + email.subject.length);
+    const last = email.subject.charCodeAt(email.subject.length - 1);
+    assert.ok(!(last >= 0xd800 && last <= 0xdbff), 'pad ' + pad + ' subject ends in a lone high surrogate');
+  }
+});
+
+test('AC10: an entity-only update body produces no blank "Update:" line', () => {
+  const inc = incident({ id: 'o1', status: 'investigating', impact: 'major', incident_updates: [{ id: 'u', status: 'investigating', body: '&nbsp;&nbsp;', created_at: '2026-10-27T10:30:00Z' }] });
+  const email = detectOne({ page: {}, incidents: [inc] });
+  const line = email.text.split('\n').find((l) => l.includes('Update:'));
+  if (line) {
+    const value = line.replace(/^[^:]*:\s*/, '');
+    assert.notEqual(value.trim(), '', 'an entity-only body must not render a blank update line');
+  }
+});
+
 const subjectCases = [
   ['update', { prev: { status: 'investigating', updated_at: '2026-10-27T10:00:00Z' }, next: { status: 'identified', updated_at: '2026-10-27T11:00:00Z' }, expect: /^\[Status\] X: update - Example incident$/ }],
   ['resolved', { prev: { status: 'investigating', updated_at: '2026-10-27T10:00:00Z' }, next: { status: 'resolved', updated_at: '2026-10-27T11:00:00Z' }, expect: /^\[Status\] X: resolved - Example incident$/ }],
