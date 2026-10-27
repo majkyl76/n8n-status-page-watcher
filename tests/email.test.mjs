@@ -23,7 +23,7 @@ function detectOne(body, settings) {
 test('AC10: subject follows the format and stays under 150 chars with no newlines', () => {
   const body = { page: {}, incidents: [incident({ id: 'o1', name: 'API errors', status: 'investigating', impact: 'major' })] };
   const email = detectOne(body);
-  assert.match(email.subject, /^\[Status\] X: 1 new event - API errors$/);
+  assert.match(email.subject, /^\[Status\] X: new incident - API errors$/);
   assert.ok(email.subject.length < 150);
   assert.ok(!email.subject.includes('\n'));
 });
@@ -37,13 +37,64 @@ test('AC10: subject pluralises and names the most severe event', () => {
     ],
   };
   const email = detectOne(body);
-  assert.match(email.subject, /^\[Status\] X: 2 new events - Big outage$/);
+  assert.match(email.subject, /^\[Status\] X: 2 events - Big outage$/);
 });
 
 test('AC10: a very long title keeps the subject under 150 chars', () => {
   const body = { page: {}, incidents: [incident({ id: 'o1', name: 'z'.repeat(300), status: 'investigating', impact: 'major' })] };
   const email = detectOne(body);
   assert.ok(email.subject.length < 150, 'subject length ' + email.subject.length);
+});
+
+test('AC17: subject is at most 149 characters for titles of every length around the limit', () => {
+  for (const len of [100, 130, 135, 136, 137, 140, 145, 149, 150, 151, 300]) {
+    const body = { page: {}, incidents: [incident({ id: 'o1', name: 'z'.repeat(len), status: 'investigating', impact: 'major' })] };
+    const email = detectOne(body);
+    assert.ok(email.subject.length <= 149, 'title ' + len + ' gave subject length ' + email.subject.length);
+    assert.ok(email.subject.startsWith('[Status] X: new incident - z'), email.subject);
+  }
+});
+
+test('AC17: update text in the email is at most 500 characters including the ellipsis', () => {
+  const bodies = ['word '.repeat(300), 'x'.repeat(900), 'a'.repeat(499) + ' ' + 'b'.repeat(50), 'w'.repeat(500), 'w'.repeat(501)];
+  for (const text of bodies) {
+    const inc = incident({ id: 'o1', status: 'investigating', impact: 'major', incident_updates: [{ id: 'u', status: 'investigating', body: text, created_at: '2026-10-27T10:30:00Z' }] });
+    const email = detectOne({ page: {}, incidents: [inc] });
+    const line = email.text.split('\n').find((l) => l.includes('Update:') || /^\s*Latest update/i.test(l));
+    assert.ok(line, 'update line found in: ' + email.text);
+    const value = line.replace(/^[^:]*:\s*/, '');
+    assert.ok(value.length <= 500, 'update text length ' + value.length + ' for input length ' + text.length);
+  }
+});
+
+const subjectCases = [
+  ['update', { prev: { status: 'investigating', updated_at: '2026-10-27T10:00:00Z' }, next: { status: 'identified', updated_at: '2026-10-27T11:00:00Z' }, expect: /^\[Status\] X: update - Example incident$/ }],
+  ['resolved', { prev: { status: 'investigating', updated_at: '2026-10-27T10:00:00Z' }, next: { status: 'resolved', updated_at: '2026-10-27T11:00:00Z' }, expect: /^\[Status\] X: resolved - Example incident$/ }],
+];
+for (const [name, c] of subjectCases) {
+  test('AC17: subject names the event type for a single ' + name + ' event', () => {
+    const state = { pages: {} };
+    const run = (fields) => runDetect(workflow, {
+      pages: [PAGE], responses: [okResponse({ page: {}, incidents: [incident(Object.assign({ id: 'o1', impact: 'major' }, fields))] })],
+      settings: defaultSettings(), staticData: state,
+    });
+    run(c.prev);
+    const out = run(c.next);
+    assert.equal(out.length, 1);
+    assert.match(out[0].json.subject, c.expect);
+  });
+}
+
+test('AC17: subject says "N events" when the types are mixed', () => {
+  const state = { pages: {} };
+  const run = (incidents) => runDetect(workflow, { pages: [PAGE], responses: [okResponse({ page: {}, incidents })], settings: defaultSettings(), staticData: state });
+  run([incident({ id: 'a', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })]);
+  const out = run([
+    incident({ id: 'a', status: 'identified', impact: 'major', updated_at: '2026-10-27T11:00:00Z' }),
+    incident({ id: 'b', name: 'Second', status: 'investigating', impact: 'minor', updated_at: '2026-10-27T11:00:00Z' }),
+  ]);
+  assert.equal(out.length, 1);
+  assert.match(out[0].json.subject, /^\[Status\] X: 2 events - /);
 });
 
 test('AC10: body lists event type, impact, status, components, update, times and link', () => {

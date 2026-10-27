@@ -184,3 +184,49 @@ test('AC9: odd page labels do not break the run', () => {
   assert.equal(out.length, 1);
   assert.equal(out[0].json.label, '__proto__');
 });
+
+test('AC15: a resolved incident first seen as history, then edited later, emits nothing', () => {
+  const state = { pages: {} };
+  const resolvedAt = (updated) => ({ page: {}, incidents: [incident({ id: 'h1', status: 'resolved', impact: 'major', updated_at: updated, resolved_at: '2026-10-27T09:00:00Z' })] });
+  assert.equal(detect([okResponse(resolvedAt('2026-10-27T09:00:00Z'))], defaultSettings(), state).length, 0);
+  const out = detect([okResponse(resolvedAt('2026-10-27T11:00:00Z'))], defaultSettings(), state);
+  assert.equal(out.length, 0, 'history edit must not alert');
+  assert.equal(state.pages[PAGE.pageKey].incidents.h1.notified, false);
+});
+
+test('AC15: an incident alerted as open and then resolved still emits one resolved event', () => {
+  const state = { pages: {} };
+  const open = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })] };
+  detect([okResponse(open)], defaultSettings(), state);
+  const done = { page: {}, incidents: [incident({ id: 'o1', status: 'resolved', impact: 'major', updated_at: '2026-10-27T11:00:00Z' })] };
+  assert.deepEqual(eventTypes(detect([okResponse(done)], defaultSettings(), state)), ['resolved']);
+  assert.equal(detect([okResponse(done)], defaultSettings(), state).length, 0);
+});
+
+test('AC15: an incident that never passed the filter while open does not emit resolved', () => {
+  const state = { pages: {} };
+  const settings = defaultSettings({ minimumImpact: 'major' });
+  const open = { page: {}, incidents: [incident({ id: 'm1', status: 'investigating', impact: 'minor', updated_at: '2026-10-27T10:00:00Z' })] };
+  assert.equal(detect([okResponse(open)], settings, state).length, 0);
+  const done = { page: {}, incidents: [incident({ id: 'm1', status: 'resolved', impact: 'major', updated_at: '2026-10-27T11:00:00Z' })] };
+  assert.equal(detect([okResponse(done)], settings, state).length, 0);
+});
+
+test('AC16: an older updated_at than the stored one emits nothing and does not move state back', () => {
+  const state = { pages: {} };
+  const at = (u) => ({ page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: u })] });
+  detect([okResponse(at('2026-10-27T11:00:00Z'))], defaultSettings(), state);
+  const out = detect([okResponse(at('2026-10-27T10:00:00Z'))], defaultSettings(), state);
+  assert.equal(out.length, 0);
+  assert.equal(state.pages[PAGE.pageKey].incidents.o1.updatedAt, '2026-10-27T11:00:00Z');
+  assert.equal(detect([okResponse(at('2026-10-27T11:00:00Z'))], defaultSettings(), state).length, 0, 'no flip-flop alert when the newer value returns');
+});
+
+test('AC16: a strictly later updated_at, or a changed status or impact, still counts', () => {
+  const state = { pages: {} };
+  const at = (u, status, impact) => ({ page: {}, incidents: [incident({ id: 'o1', status: status || 'investigating', impact: impact || 'major', updated_at: u })] });
+  detect([okResponse(at('2026-10-27T10:00:00Z'))], defaultSettings(), state);
+  assert.deepEqual(eventTypes(detect([okResponse(at('2026-10-27T11:00:00Z'))], defaultSettings(), state)), ['update']);
+  assert.deepEqual(eventTypes(detect([okResponse(at('2026-10-27T10:30:00Z', 'identified'))], defaultSettings(), state)), ['update'], 'status change counts even with an older timestamp');
+  assert.deepEqual(eventTypes(detect([okResponse(at('2026-10-27T10:30:00Z', 'identified', 'critical'))], defaultSettings(), state)), ['update'], 'impact change counts');
+});
