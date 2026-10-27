@@ -212,6 +212,45 @@ test('AC15: an incident that never passed the filter while open does not emit re
   assert.equal(detect([okResponse(done)], settings, state).length, 0);
 });
 
+test('AC15: resolved history then a later updated_at while still resolved gives no event (F-A)', () => {
+  const state = { pages: {} };
+  const resolvedAt = (updated) => ({ page: {}, incidents: [incident({ id: 'h1', status: 'resolved', impact: 'major', updated_at: updated, resolved_at: '2026-10-27T09:00:00Z' })] });
+  assert.equal(detect([okResponse(resolvedAt('2026-10-27T09:00:00Z'))], defaultSettings(), state).length, 0, 'first seen as history');
+  assert.equal(detect([okResponse(resolvedAt('2026-10-27T11:00:00Z'))], defaultSettings(), state).length, 0, 'later edit of unnotified history');
+});
+
+test('AC15: an alerted open incident resolves once, then moves to postmortem, then gets a later edit: only the first resolved fires (F-A)', () => {
+  const state = { pages: {} };
+  const open = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })] };
+  detect([okResponse(open)], defaultSettings(), state);
+  const resolved = { page: {}, incidents: [incident({ id: 'o1', status: 'resolved', impact: 'major', updated_at: '2026-10-27T11:00:00Z' })] };
+  assert.deepEqual(eventTypes(detect([okResponse(resolved)], defaultSettings(), state)), ['resolved'], 'first resolution fires once');
+
+  const postmortem = { page: {}, incidents: [incident({ id: 'o1', status: 'postmortem', impact: 'major', updated_at: '2026-10-27T12:00:00Z' })] };
+  assert.equal(detect([okResponse(postmortem)], defaultSettings(), state).length, 0, 'moving resolved -> postmortem must not re-alert');
+
+  const completed = { page: {}, incidents: [incident({ id: 'o1', status: 'completed', impact: 'major', updated_at: '2026-10-27T13:00:00Z' })] };
+  assert.equal(detect([okResponse(completed)], defaultSettings(), state).length, 0, 'moving postmortem -> completed must not re-alert');
+
+  const laterEdit = { page: {}, incidents: [incident({ id: 'o1', status: 'completed', impact: 'major', updated_at: '2026-10-27T14:00:00Z' })] };
+  assert.equal(detect([okResponse(laterEdit)], defaultSettings(), state).length, 0, 'a later edit while already resolved must not re-alert');
+});
+
+test('AC15: a genuine reopen (stored status open) followed by re-resolve still emits exactly one resolved', () => {
+  const state = { pages: {} };
+  const open = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })] };
+  detect([okResponse(open)], defaultSettings(), state);
+  const resolved = { page: {}, incidents: [incident({ id: 'o1', status: 'resolved', impact: 'major', updated_at: '2026-10-27T11:00:00Z' })] };
+  assert.deepEqual(eventTypes(detect([okResponse(resolved)], defaultSettings(), state)), ['resolved']);
+
+  const reopened = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T12:00:00Z' })] };
+  detect([okResponse(reopened)], defaultSettings(), state);
+
+  const reResolved = { page: {}, incidents: [incident({ id: 'o1', status: 'resolved', impact: 'major', updated_at: '2026-10-27T13:00:00Z' })] };
+  assert.deepEqual(eventTypes(detect([okResponse(reResolved)], defaultSettings(), state)), ['resolved'], 'a genuine reopen then re-resolve emits one resolved');
+  assert.equal(detect([okResponse(reResolved)], defaultSettings(), state).length, 0, 'no repeat after that');
+});
+
 test('AC16: an older updated_at than the stored one emits nothing and does not move state back', () => {
   const state = { pages: {} };
   const at = (u) => ({ page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: u })] });

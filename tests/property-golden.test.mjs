@@ -52,7 +52,10 @@ function referenceRun(state, incidents, settings) {
       let notified = prev.notified === true;
       if (changed) {
         if (resolved) {
-          if (settings.alertOnResolved && prev.notified === true) events.push('resolved');
+          // AC15: only alert once per resolution; a stored status that was
+          // already resolved (resolved/postmortem/completed) must not re-alert.
+          const prevResolved = RESOLVED.includes(prev.status.toLowerCase());
+          if (settings.alertOnResolved && prev.notified === true && !prevResolved) events.push('resolved');
         } else if (passes) {
           events.push('update');
           notified = true;
@@ -79,7 +82,9 @@ function nodeEventTypes(out) {
 test('AC13: random poll sequences match the reference model', () => {
   const rand = mulberry32(987654321);
   const pick = (arr) => arr[Math.floor(rand() * arr.length)];
-  const statuses = ['investigating', 'identified', 'monitoring', 'resolved'];
+  // Includes postmortem/completed so a resolved incident moving between resolved
+  // statuses (F-A) is exercised, not just open -> resolved.
+  const statuses = ['investigating', 'identified', 'monitoring', 'resolved', 'postmortem', 'completed'];
   const impacts = ['none', 'minor', 'major', 'critical'];
   const ids = ['a', 'b', 'c'];
   const base = Date.parse('2026-10-27T00:00:00Z');
@@ -92,7 +97,7 @@ test('AC13: random poll sequences match the reference model', () => {
       const incidents = [];
       for (const id of ids) {
         if (rand() < 0.3) continue; // sometimes the incident is absent this run
-        const revision = Math.floor(rand() * 3); // controls whether updated_at changes
+        const revision = Math.floor(rand() * 6); // controls whether updated_at changes, including bumps after resolution
         incidents.push(incident({
           id,
           name: 'Incident ' + id,
