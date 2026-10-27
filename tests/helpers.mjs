@@ -62,7 +62,10 @@ export function runCode(jsCode, globals) {
   const sandbox = Object.assign({ console, URL, Date: globals.Date || Date }, globals);
   vm.createContext(sandbox);
   const wrapped = '(function () {\n' + jsCode + '\n})()';
-  return vm.runInContext(wrapped, sandbox, { timeout: 3000, filename: 'code-node.js' });
+  const result = vm.runInContext(wrapped, sandbox, { timeout: 3000, filename: 'code-node.js' });
+  // The result is built with the vm realm's constructors; clone it into this
+  // realm so deepEqual against native literals compares by value, not prototype.
+  return result === undefined ? result : structuredClone(result);
 }
 
 // Build the n8n globals for the "Check settings" node from one config object.
