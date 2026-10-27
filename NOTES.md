@@ -86,9 +86,9 @@ recorded below.
 `npm test` runs `node scripts/build.mjs && node --test`:
 
 ```
-tests 110
+tests 116
 suites 0
-pass 110
+pass 116
 fail 0
 skipped 0
 todo 0
