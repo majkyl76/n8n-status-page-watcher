@@ -41,6 +41,7 @@ const statuspage = (key, get) =>
   });
 const serverA = statuspage('a', () => mockA);
 const serverB = statuspage('b', () => ({ status: 200, body: fixtureB }));
+const serverC = http.createServer((req, res) => res.writeHead(404, { 'content-type': 'text/html' }).end('<html><body>Not a status page</body></html>'));
 const listen = (srv) => new Promise((r) => srv.listen(0, '127.0.0.1', () => r(srv.address().port)));
 
 // ---------- SMTP sink ----------
@@ -121,7 +122,8 @@ async function waitForRun(workflowId, afterMs, timeoutMs = 90000) {
   throw new Error('timed out waiting for an execution');
 }
 async function runPhase(workflowId, name) {
-  await sleep(1500);
+  // The mock was switched just before this call, so take the start time now. Sleeping first
+  // lost the mail of an execution that started during the sleep (seen once in a live run).
   mails.length = 0;
   const T = Date.now();
   const exec = await waitForRun(workflowId, T);
@@ -151,6 +153,7 @@ async function main() {
   const portA = await listen(serverA);
   const portB = await listen(serverB);
   const smtpPort = await listen(sink);
+  const portC = await listen(serverC);
   const created = { workflow: null, credential: null };
   try {
     const cred = await api('/credentials', {
@@ -250,7 +253,7 @@ async function main() {
     for (const n of dead.nodes) {
       if (n.type === 'n8n-nodes-base.set') {
         const set = (k, v) => { n.parameters.assignments.assignments.find((a) => a.name === k).value = v; };
-        set('pages', 'Dead host | http://127.0.0.1:9');
+        set('pages', `Dead host | http://127.0.0.1:9\nHTML 404 | http://127.0.0.1:${portC}`);
         set('failuresBeforeAlert', 1);
       }
     }
@@ -258,11 +261,13 @@ async function main() {
     created.workflow2 = w2.id;
     await api(`/workflows/${w2.id}/activate`, { method: 'POST', body: '{}' });
     r = await runPhase(w2.id, 'connection-refused');
-    check('connection refused: run still succeeds and one "unreachable" email is sent', () => {
+    check('closed port and HTML 404 body: run still succeeds and each page gets one "unreachable" email', () => {
       assert.equal(r.exec.status, 'success');
-      assert.equal(r.mails.length, 1);
-      assert.match(r.mails[0].subject, /Dead host/);
-      assert.match(r.mails[0].subject, /unreachable/i);
+      assert.equal(r.mails.length, 2, JSON.stringify(r.mails.map((m) => m.subject)));
+      const subjects = r.mails.map((m) => m.subject).join('\n');
+      assert.match(subjects, /Dead host/);
+      assert.match(subjects, /HTML 404/);
+      assert.ok(r.mails.every((m) => /unreachable/i.test(m.subject)));
     });
 
     mkdirSync(join(root, 'samples'), { recursive: true });
@@ -278,7 +283,7 @@ async function main() {
       await api(`/workflows/${created.workflow2}`, { method: 'DELETE' }).catch(() => {});
     }
     if (created.credential) await api(`/credentials/${created.credential}`, { method: 'DELETE' }).catch(() => {});
-    serverA.close(); serverB.close(); sink.close();
+    serverA.close(); serverB.close(); serverC.close(); sink.close();
   }
   const failed = results.filter((x) => !x).length;
   console.log(`\ne2e summary: ${results.length - failed}/${results.length} passed`);
