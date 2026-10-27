@@ -91,3 +91,15 @@ test('AC8: one broken page does not stop the others', () => {
 test('AC8: an error item is handled without throwing', () => {
   assert.doesNotThrow(() => detect(errorResponse('socket hang up'), defaultSettings(), { pages: {} }));
 });
+
+test('AC8: a corrupt non-numeric stored failure counter still reaches the unreachable alert (review 3 F2)', () => {
+  const state = { pages: { [PAGE.pageKey]: { incidents: {}, failures: 'lots', failureAlerted: false, initialised: true } } };
+  const settings = defaultSettings({ failuresBeforeAlert: 3 });
+  const response = httpStatusResponse(500, 'boom');
+  for (let i = 0; i < 2; i++) {
+    assert.equal(detect(response, settings, state).length, 0);
+  }
+  const out = detect(response, settings, state);
+  assert.ok(hasEventType(out, 'unreachable'), 'unreachable alert fires despite the corrupt stored counter');
+  assert.equal(state.pages[PAGE.pageKey].failureAlerted, true);
+});

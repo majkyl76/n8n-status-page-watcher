@@ -92,6 +92,21 @@ test('AC17: truncating a long title never leaves a lone (split) surrogate in the
   }
 });
 
+test('AC17: the HTML hard-cut of a single oversized event never leaves a lone surrogate (review 3 F1)', () => {
+  const name = 'A'.repeat(19860) + '\u{1F600}' + 'B'.repeat(50);
+  const body = { page: {}, incidents: [incident({ id: 'o1', name, status: 'investigating', impact: 'critical' })] };
+  const email = detectOne(body, defaultSettings({ maxIncidentsPerPage: 10 }));
+  assert.ok(email.html.length < 20000, 'html under 20000, got ' + email.html.length);
+  // Scan the whole body: a lone high surrogate anywhere is a split character.
+  for (let i = 0; i < email.html.length; i++) {
+    const code = email.html.charCodeAt(i);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = email.html.charCodeAt(i + 1);
+      assert.ok(next >= 0xdc00 && next <= 0xdfff, 'lone high surrogate at index ' + i + ' in html, context: ' + JSON.stringify(email.html.slice(Math.max(0, i - 10), i + 10)));
+    }
+  }
+});
+
 test('AC10: an entity-only update body produces no blank "Update:" line', () => {
   const inc = incident({ id: 'o1', status: 'investigating', impact: 'major', incident_updates: [{ id: 'u', status: 'investigating', body: '&nbsp;&nbsp;', created_at: '2026-10-27T10:30:00Z' }] });
   const email = detectOne({ page: {}, incidents: [inc] });
