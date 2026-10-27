@@ -71,6 +71,14 @@ function decodeEntities(value) {
     .replace(/&nbsp;/g, ' ');
 }
 
+// Drop a trailing lone high surrogate left when a slice lands in the middle of a
+// surrogate pair (an emoji is two UTF-16 code units), so we never emit half a
+// character. A trailing low surrogate means a complete pair, so leave it.
+function trimLoneSurrogate(text) {
+  const code = text.charCodeAt(text.length - 1);
+  return code >= 0xD800 && code <= 0xDBFF ? text.slice(0, -1) : text;
+}
+
 // Cut to at most "max" characters at a word boundary, adding an ellipsis.
 function truncateWords(value, max) {
   const text = String(value);
@@ -78,11 +86,14 @@ function truncateWords(value, max) {
   const cut = text.slice(0, max - 3);
   const lastSpace = cut.lastIndexOf(' ');
   const base = lastSpace > 0 ? cut.slice(0, lastSpace) : cut;
-  return base + '...';
+  return trimLoneSurrogate(base) + '...';
 }
 
 function updateText(raw) {
-  return truncateWords(decodeEntities(stripHtml(raw)), 500);
+  // Decode entities last, then collapse and trim again: a body of entities only
+  // (e.g. "&nbsp;") must not leave a blank line once the entities become spaces.
+  const text = decodeEntities(stripHtml(raw)).replace(/\s+/g, ' ').trim();
+  return truncateWords(text, 500);
 }
 
 function uniqueNames(names) {
@@ -319,11 +330,23 @@ for (let i = 0; i < pageItems.length; i++) {
       } else {
         const prevTime = Date.parse(prev.updatedAt);
         const nextTime = Date.parse(updatedAt);
-        const bothTimes = !isNaN(prevTime) && !isNaN(nextTime);
-        // A later timestamp counts as a change. An older one (a stale cache or
-        // a load balancer serving an old copy) does not, and never moves state back.
-        const timeChanged = bothTimes ? nextTime > prevTime : prev.updatedAt !== updatedAt;
-        const keepOlder = bothTimes && nextTime < prevTime;
+        const prevValid = !isNaN(prevTime);
+        const nextValid = !isNaN(nextTime);
+        // A strictly later timestamp counts as a change. An older one (a stale
+        // cache or a load balancer serving an old copy), or a missing/unparsable
+        // one while we still hold a good one, does not, and never moves state back.
+        let timeChanged;
+        let keepStored;
+        if (prevValid && nextValid) {
+          timeChanged = nextTime > prevTime;
+          keepStored = nextTime < prevTime;
+        } else if (prevValid && !nextValid) {
+          timeChanged = false;
+          keepStored = true;
+        } else {
+          timeChanged = prev.updatedAt !== updatedAt; // neither parses: compare as text
+          keepStored = false;
+        }
         const changed = prev.status !== status || prev.impact !== impact || timeChanged;
         let notified = prev.notified === true;
         if (changed) {
@@ -337,7 +360,7 @@ for (let i = 0; i < pageItems.length; i++) {
             notified = true;
           }
         }
-        nextIncidents[id] = { status: status, updatedAt: keepOlder ? prev.updatedAt : updatedAt, impact: impact, notified: notified };
+        nextIncidents[id] = { status: status, updatedAt: keepStored ? prev.updatedAt : updatedAt, impact: impact, notified: notified };
       }
     }
 
@@ -358,7 +381,7 @@ for (let i = 0; i < pageItems.length; i++) {
     const summary = n === 1 ? (phrases[mostSevere.type] || 'event') : n + ' events';
     let subject = '[Status] ' + label + ': ' + summary + ' - ' + mostSevere.title;
     subject = subject.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
-    if (subject.length > 149) subject = subject.slice(0, 149);
+    if (subject.length > 149) subject = trimLoneSurrogate(subject.slice(0, 149));
 
     const nowStr = fmtTime(new Date().toISOString());
 
