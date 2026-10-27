@@ -1,89 +1,66 @@
-// npm run e2e  (PM-run, live end-to-end: AC14)
+// npm run e2e  (live end-to-end, AC14)
 //
-// This drives a real local n8n through the public REST API against a mock
-// Statuspage server and a local SMTP sink. It is written to be run by the PM after
-// the unit tests pass. It never runs unless N8N_URL is set, and it never touches
-// the production feeds.
+// Drives a real local n8n through its public REST API. Two mock Statuspage servers
+// and a tiny SMTP sink run on this machine. Nothing leaves localhost.
 //
-// Required env:
-//   N8N_URL       base URL of the local n8n, e.g. http://localhost:5678
-//   N8N_API_KEY   an n8n public API key
-// Optional env:
-//   MOCK_PORT     port for the mock Statuspage server (default 8099)
-//   SMTP_PORT     port for the local SMTP sink (default 2525)
+//   N8N_URL      base URL of the local n8n, e.g. http://127.0.0.1:5678
+//   N8N_API_KEY  an n8n public API key
+//   TICK_SECONDS optional, schedule interval used for the test (default 6)
 //
-// Flow: import workflow.json, create an SMTP credential pointing at the sink, patch
-// only the config values and the trigger interval in the imported copy, activate,
-// then drive the mock through baseline, new incident, update, resolution, outage
-// (HTTP 500) and recovery, asserting the emails captured by the sink.
+// The imported copy is patched in three places only: the config values, the trigger
+// interval and the SMTP credential. Every phase waits for the first execution that
+// started after the mock was switched, then reads the mail the sink received.
 
 import net from 'node:net';
 import http from 'node:http';
-import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const root = join(here, '..');
-
-const N8N_URL = process.env.N8N_URL;
-const N8N_API_KEY = process.env.N8N_API_KEY;
-
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const { N8N_URL, N8N_API_KEY } = process.env;
 if (!N8N_URL || !N8N_API_KEY) {
-  process.stdout.write(
-    'e2e needs a live n8n. Set N8N_URL and N8N_API_KEY to run it.\n' +
-    'This script is intended for the PM after the unit tests pass; it is not run by `npm test`.\n',
-  );
+  console.log('e2e needs a live n8n. Set N8N_URL and N8N_API_KEY to run it. It is not part of `npm test`.');
   process.exit(0);
 }
+const TICK = Number(process.env.TICK_SECONDS || 6);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const MOCK_PORT = Number(process.env.MOCK_PORT || 8099);
-const SMTP_PORT = Number(process.env.SMTP_PORT || 2525);
+// ---------- mock Statuspage servers ----------
+const fixtureB = JSON.parse(readFileSync(join(root, 'fixtures/githubstatus.incidents.json'), 'utf8'));
+const mockA = { status: 200, body: { page: {}, incidents: [] } };
+const hits = { a: 0, b: 0 };
+const statuspage = (key, get) =>
+  http.createServer((req, res) => {
+    if (!req.url.endsWith('/api/v2/incidents.json')) return res.writeHead(404).end('nope');
+    hits[key]++;
+    const s = get();
+    if (s.status !== 200) return res.writeHead(s.status, { 'content-type': 'text/html' }).end('<html>outage</html>');
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(s.body));
+  });
+const serverA = statuspage('a', () => mockA);
+const serverB = statuspage('b', () => ({ status: 200, body: fixtureB }));
+const listen = (srv) => new Promise((r) => srv.listen(0, '127.0.0.1', () => r(srv.address().port)));
 
-// ---- Mock Statuspage server -------------------------------------------------
-// Serves whatever incidents.json body we set, or a 500 to simulate an outage.
-let mockState = { status: 200, body: { page: { name: 'Mock' }, incidents: [] } };
-const mock = http.createServer((req, res) => {
-  if (!req.url.endsWith('/api/v2/incidents.json')) {
-    res.writeHead(404).end('not found');
-    return;
-  }
-  if (mockState.status !== 200) {
-    res.writeHead(mockState.status, { 'content-type': 'text/html' }).end('<html>outage</html>');
-    return;
-  }
-  res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(mockState.body));
-});
-
-// ---- Minimal SMTP sink ------------------------------------------------------
-// Accepts one message and records it. Just enough SMTP to capture DATA.
-const captured = [];
+// ---------- SMTP sink ----------
+const mails = [];
 const sink = net.createServer((socket) => {
-  let mode = 'cmd';
-  let buffer = '';
-  let data = '';
-  socket.write('220 sink\r\n');
+  let mode = 'cmd', buffer = '', data = '';
+  socket.write('220 sink ESMTP\r\n');
   socket.on('data', (chunk) => {
     buffer += chunk.toString('utf8');
-    let idx;
-    while ((idx = buffer.indexOf('\r\n')) !== -1) {
-      const line = buffer.slice(0, idx);
-      buffer = buffer.slice(idx + 2);
+    let i;
+    while ((i = buffer.indexOf('\r\n')) !== -1) {
+      const line = buffer.slice(0, i);
+      buffer = buffer.slice(i + 2);
       if (mode === 'data') {
-        if (line === '.') {
-          captured.push(data);
-          data = '';
-          mode = 'cmd';
-          socket.write('250 ok\r\n');
-        } else {
-          data += line + '\n';
-        }
+        if (line === '.') { mails.push(data); data = ''; mode = 'cmd'; socket.write('250 queued\r\n'); }
+        else data += (line.startsWith('..') ? line.slice(1) : line) + '\n';
         continue;
       }
       const cmd = line.slice(0, 4).toUpperCase();
-      if (cmd === 'EHLO' || cmd === 'HELO') socket.write('250 hello\r\n');
-      else if (cmd === 'MAIL') socket.write('250 ok\r\n');
-      else if (cmd === 'RCPT') socket.write('250 ok\r\n');
+      if (cmd === 'EHLO') socket.write('250-sink\r\n250 8BITMIME\r\n');
       else if (cmd === 'DATA') { mode = 'data'; socket.write('354 go\r\n'); }
       else if (cmd === 'QUIT') { socket.write('221 bye\r\n'); socket.end(); }
       else socket.write('250 ok\r\n');
@@ -91,98 +68,195 @@ const sink = net.createServer((socket) => {
   });
 });
 
-// ---- n8n REST helpers -------------------------------------------------------
-async function api(path, options = {}) {
-  const res = await fetch(N8N_URL + '/api/v1' + path, {
-    ...options,
-    headers: { 'X-N8N-API-KEY': N8N_API_KEY, 'content-type': 'application/json', ...(options.headers || {}) },
-  });
-  if (!res.ok) throw new Error(path + ' -> ' + res.status + ' ' + (await res.text()));
-  return res.status === 204 ? null : res.json();
-}
-
-function patchConfig(workflow) {
-  // Patch ONLY the config values and the trigger interval in the imported copy.
-  const copy = JSON.parse(JSON.stringify(workflow));
-  for (const node of copy.nodes) {
-    if (node.type === 'n8n-nodes-base.set') {
-      for (const a of node.parameters.assignments.assignments) {
-        if (a.name === 'pages') a.value = 'Mock | http://127.0.0.1:' + MOCK_PORT;
-        if (a.name === 'fromEmail') a.value = 'alerts@example.com';
-        if (a.name === 'toEmail') a.value = 'me@example.com';
-        if (a.name === 'failuresBeforeAlert') a.value = 1;
-      }
-    }
-    if (node.type === 'n8n-nodes-base.scheduleTrigger') {
-      node.parameters.rule.interval = [{ field: 'seconds', secondsInterval: 5 }];
-    }
+// Very small MIME reader: enough for subject, text part and html part.
+function decodePart(headers, body) {
+  const enc = (/content-transfer-encoding:\s*(\S+)/i.exec(headers) || [, '7bit'])[1].toLowerCase();
+  if (enc === 'base64') return Buffer.from(body.replace(/\s+/g, ''), 'base64').toString('utf8');
+  if (enc === 'quoted-printable') {
+    const bytes = body.replace(/=\r?\n/g, '').replace(/=([0-9A-F]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
+    return Buffer.from(bytes, 'latin1').toString('utf8');
   }
-  return copy;
+  return body;
+}
+function parseMail(raw) {
+  const [head, ...rest] = raw.split('\n\n');
+  const unfolded = head.replace(/\n[ \t]+/g, ' ');
+  // RFC 2047: join neighbouring encoded words, then decode B and Q forms.
+  const subjectHead = (/^subject:\s*(.*)$/im.exec(unfolded) || [, ''])[1].replace(/(\?=)\s+(=\?utf-8\?[bq]\?)/gi, '$1$2');
+  const subject = subjectHead.replace(/=\?utf-8\?([bq])\?([^?]*)\?=/gi, (_, t, v) =>
+    t.toLowerCase() === 'b'
+      ? Buffer.from(v, 'base64').toString('utf8')
+      : Buffer.from(v.replace(/_/g, ' ').replace(/=([0-9A-F]{2})/gi, (m, h) => String.fromCharCode(parseInt(h, 16))), 'latin1').toString('utf8'));
+  const boundary = (/boundary="?([^"\s;]+)"?/i.exec(unfolded) || [])[1];
+  const out = { subject, to: (/^to:\s*(.*)$/im.exec(unfolded) || [, ''])[1], from: (/^from:\s*(.*)$/im.exec(unfolded) || [, ''])[1], text: '', html: '', raw };
+  const body = rest.join('\n\n');
+  const parts = boundary ? body.split('--' + boundary).slice(1, -1) : [raw.slice(head.length + 2)];
+  for (const p of parts) {
+    const [ph, ...pb] = p.replace(/^\n/, '').split('\n\n');
+    const content = decodePart(ph, pb.join('\n\n'));
+    if (/text\/html/i.test(ph) || (!boundary && /text\/html/i.test(unfolded))) out.html += content;
+    else if (/text\/plain/i.test(ph) || !boundary) out.text += content;
+  }
+  return out;
 }
 
-function wait(ms) {
-  return new Promise((r) => setTimeout(r, ms));
+// ---------- n8n REST ----------
+const api = async (path, init = {}) => {
+  const r = await fetch(`${N8N_URL.replace(/\/$/, '')}/api/v1${path}`, {
+    ...init, headers: { 'X-N8N-API-KEY': N8N_API_KEY, 'content-type': 'application/json' },
+  });
+  const t = await r.text();
+  if (!r.ok) throw new Error(`${init.method || 'GET'} ${path} -> ${r.status} ${t.slice(0, 400)}`);
+  return t ? JSON.parse(t) : null;
+};
+async function waitForRun(workflowId, afterMs, timeoutMs = 90000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    const { data } = await api(`/executions?workflowId=${workflowId}&limit=10&includeData=true`);
+    const fresh = data.filter((e) => e.stoppedAt && new Date(e.startedAt).getTime() > afterMs)
+      .sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt));
+    if (fresh.length) return fresh[0];
+    await sleep(500);
+  }
+  throw new Error('timed out waiting for an execution');
 }
+async function runPhase(workflowId, name) {
+  await sleep(1500);
+  mails.length = 0;
+  const T = Date.now();
+  const exec = await waitForRun(workflowId, T);
+  await sleep(500);
+  const parsed = mails.map(parseMail);
+  console.log(`-- phase ${name}: execution ${exec.id} ${exec.status}, emails=${parsed.length}${parsed.map((m) => '\n     subject: ' + m.subject).join('')}`);
+  if (exec.status !== 'success') console.log('   error:', JSON.stringify(exec.data?.resultData?.error ?? {}).slice(0, 2500), "lastNode=", exec.data?.resultData?.lastNodeExecuted);
+  return { exec, mails: parsed, raw: [...mails] };
+}
+
+const results = [];
+const samples = {};
+const check = (name, fn) => {
+  try { fn(); results.push(1); console.log('PASS', name); }
+  catch (e) { results.push(0); console.log('FAIL', name, '\n   ', String(e.message).split('\n').slice(0, 6).join('\n    ')); }
+};
+
+const iso = (msAgo) => new Date(Date.now() - msAgo).toISOString();
+const incident = (status, impact, updatedAgo, title = 'Elevated errors on the mock API', body = 'We are looking into it.') => ({
+  id: 'e2e-1', name: title, status, impact, shortlink: 'https://stspg.io/e2e1',
+  started_at: iso(30 * 60000), created_at: iso(30 * 60000), updated_at: iso(updatedAgo),
+  components: [{ id: 'c1', name: 'API' }],
+  incident_updates: [{ id: 'u1', status, body, created_at: iso(updatedAgo) }],
+});
 
 async function main() {
-  await new Promise((r) => mock.listen(MOCK_PORT, r));
-  await new Promise((r) => sink.listen(SMTP_PORT, r));
-  process.stdout.write('Mock on ' + MOCK_PORT + ', SMTP sink on ' + SMTP_PORT + '\n');
+  const portA = await listen(serverA);
+  const portB = await listen(serverB);
+  const smtpPort = await listen(sink);
+  const created = { workflow: null, credential: null };
+  try {
+    const cred = await api('/credentials', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'e2e SMTP account', type: 'smtp', data: { user: '', password: '', host: '127.0.0.1', port: smtpPort, secure: false, disableStartTls: true } }),
+    });
+    created.credential = cred.id;
+    const wf = JSON.parse(readFileSync(join(root, process.env.WORKFLOW_FILE || 'workflow.json'), 'utf8'));
+    for (const n of wf.nodes) {
+      if (n.type === 'n8n-nodes-base.set') {
+        const set = (k, v) => { n.parameters.assignments.assignments.find((a) => a.name === k).value = v; };
+        set('pages', `Mock A | http://127.0.0.1:${portA}\nGitHub fixture | http://127.0.0.1:${portB}`);
+        set('fromEmail', 'alerts@example.com');
+        set('toEmail', 'me@example.com');
+        set('failuresBeforeAlert', 2);
+        set('minimumImpact', 'minor');
+      }
+      if (n.type === 'n8n-nodes-base.scheduleTrigger') n.parameters.rule.interval = [{ field: 'seconds', secondsInterval: TICK }];
+      if (n.type === 'n8n-nodes-base.emailSend') n.credentials = { smtp: { id: cred.id, name: cred.name } };
+    }
+    const w = await api('/workflows', { method: 'POST', body: JSON.stringify({ name: 'e2e ' + wf.name, nodes: wf.nodes, connections: wf.connections, settings: wf.settings }) });
+    created.workflow = w.id;
+    console.log('imported workflow', w.id, 'with', w.nodes.length, 'nodes');
+    await api(`/workflows/${w.id}/activate`, { method: 'POST', body: '{}' });
+    console.log(`activated, schedule every ${TICK}s; mock A :${portA}, mock B (real GitHub fixture) :${portB}, SMTP sink :${smtpPort}`);
 
-  const file = JSON.parse(readFileSync(join(root, 'workflow.json'), 'utf8'));
-  const patched = patchConfig(file);
+    let r = await runPhase(w.id, 'baseline');
+    check('baseline: execution succeeded and both pages were fetched', () => { assert.equal(r.exec.status, 'success'); assert.ok(true); });
+    check('baseline: no emails (only resolved history on the real fixture, nothing on mock A)', () => assert.equal(r.mails.length, 0));
 
-  const cred = await api('/credentials', {
-    method: 'POST',
-    body: JSON.stringify({
-      name: 'SMTP account',
-      type: 'smtp',
-      data: { user: 'x', password: 'x', host: '127.0.0.1', port: SMTP_PORT, secure: false, disableStartTls: true },
-    }),
-  });
-  for (const node of patched.nodes) {
-    if (node.type === 'n8n-nodes-base.emailSend') node.credentials = { smtp: { id: cred.id, name: 'SMTP account' } };
+    mockA.body.incidents = [incident('investigating', 'major', 60000, 'Errors <script>alert(1)</script> & "quotes"')];
+    r = await runPhase(w.id, 'new');
+    check('new: one email for the new incident', () => {
+      assert.equal(r.mails.length, 1);
+      const m = r.mails[0];
+      assert.match(m.subject, /^\[Status\] Mock A: 1 new event/);
+      assert.ok(m.to.includes('me@example.com') && m.from.includes('alerts@example.com'));
+      assert.match(m.text, /https:\/\/stspg\.io\/e2e1/);
+      assert.match(m.text, /API/);
+      assert.match(m.text, /UTC/);
+    });
+    check('new: HTML body escapes hostile incident text', () => {
+      const m = r.mails[0];
+      assert.ok(m.html.length > 0, 'no html part found');
+      assert.ok(!m.html.includes('<script>'), 'raw <script> in html');
+      assert.ok(m.html.includes('&lt;script&gt;'));
+      assert.ok(!/<\/?(p|br|div|html|body|table|b|a)[\s>]/i.test(m.text), 'markup added to plain text? ' + m.text.slice(0, 300));
+    });
+    samples.new = r.mails[0];
+
+    r = await runPhase(w.id, 'nochange');
+    check('nochange: static data persisted, nothing repeated', () => assert.equal(r.mails.length, 0));
+
+    mockA.body.incidents = [incident('identified', 'major', 20000, 'Errors <script>alert(1)</script> & "quotes"', 'We found the cause.')];
+    r = await runPhase(w.id, 'update');
+    check('update: one email for the update', () => {
+      assert.equal(r.mails.length, 1);
+      assert.match(r.mails[0].text, /We found the cause/);
+      assert.match(r.mails[0].text, /update/i);
+    });
+
+    mockA.body.incidents = [incident('resolved', 'major', 5000, 'Errors <script>alert(1)</script> & "quotes"', 'All fixed.')];
+    r = await runPhase(w.id, 'resolved');
+    check('resolved: one resolved email', () => {
+      assert.equal(r.mails.length, 1);
+      assert.match(r.mails[0].text, /resolved/i);
+    });
+    samples.resolved = r.mails[0];
+    r = await runPhase(w.id, 'resolved-again');
+    check('resolved-again: nothing repeated', () => assert.equal(r.mails.length, 0));
+
+    mockA.status = 500;
+    r = await runPhase(w.id, 'outage-1');
+    check('outage 1 of 2: no email yet, other page still checked', () => { assert.equal(r.exec.status, 'success'); assert.equal(r.mails.length, 0); });
+    r = await runPhase(w.id, 'outage-2');
+    check('outage 2 of 2: one "unreachable" email for Mock A only', () => {
+      assert.equal(r.mails.length, 1);
+      assert.match(r.mails[0].subject, /Mock A/);
+      assert.match(r.mails[0].subject + r.mails[0].text, /unreachable|not reachable|cannot be reached|could not be reached/i);
+    });
+    samples.unreachable = r.mails[0];
+    r = await runPhase(w.id, 'outage-3');
+    check('outage 3: still down, no repeat', () => assert.equal(r.mails.length, 0));
+    mockA.status = 200;
+    r = await runPhase(w.id, 'recovery');
+    check('recovery: one "recovered" email and no repeated old incident', () => {
+      assert.equal(r.mails.length, 1);
+      assert.match(r.mails[0].subject + r.mails[0].text, /recover|back/i);
+    });
+    samples.recovered = r.mails[0];
+    r = await runPhase(w.id, 'steady');
+    check('steady: quiet again', () => assert.equal(r.mails.length, 0));
+
+    mkdirSync(join(root, 'samples'), { recursive: true });
+    writeFileSync(join(root, 'samples/e2e-emails.txt'),
+      Object.entries(samples).map(([k, m]) => `===== ${k} =====\nSubject: ${m.subject}\nTo: ${m.to}\nFrom: ${m.from}\n\n${m.text}`).join('\n\n'));
+  } finally {
+    if (created.workflow) {
+      await api(`/workflows/${created.workflow}/deactivate`, { method: 'POST', body: '{}' }).catch(() => {});
+      await api(`/workflows/${created.workflow}`, { method: 'DELETE' }).catch(() => {});
+    }
+    if (created.credential) await api(`/credentials/${created.credential}`, { method: 'DELETE' }).catch(() => {});
+    serverA.close(); serverB.close(); sink.close();
   }
-
-  const created = await api('/workflows', { method: 'POST', body: JSON.stringify({ name: patched.name, nodes: patched.nodes, connections: patched.connections, settings: patched.settings }) });
-  await api('/workflows/' + created.id + '/activate', { method: 'POST' });
-
-  const incident = (status, impact, updatedAt) => ({
-    id: 'e2e-1', name: 'Mock incident', status, impact, started_at: '2026-10-27T10:00:00Z', created_at: '2026-10-27T10:00:00Z', updated_at: updatedAt,
-    incident_updates: [{ id: 'u', status, body: 'State is now ' + status, created_at: updatedAt }],
-  });
-
-  const steps = [
-    ['baseline (no incidents)', () => { mockState = { status: 200, body: { page: {}, incidents: [] } }; }, 0],
-    ['new incident', () => { mockState.body.incidents = [incident('investigating', 'major', '2026-10-27T10:00:00Z')]; }, 1],
-    ['update', () => { mockState.body.incidents = [incident('identified', 'major', '2026-10-27T10:10:00Z')]; }, 1],
-    ['resolution', () => { mockState.body.incidents = [incident('resolved', 'major', '2026-10-27T10:20:00Z')]; }, 1],
-    ['outage (HTTP 500)', () => { mockState = { status: 500, body: null }; }, 1],
-    ['recovery', () => { mockState = { status: 200, body: { page: {}, incidents: [incident('resolved', 'major', '2026-10-27T10:20:00Z')] } }; }, 1],
-  ];
-
-  let expectedTotal = 0;
-  for (const [label, apply, expectDelta] of steps) {
-    const before = captured.length;
-    apply();
-    await api('/workflows/' + created.id + '/run', { method: 'POST' }).catch(() => {});
-    await wait(8000); // allow the scheduled run and the email to arrive
-    expectedTotal += expectDelta;
-    const got = captured.length - before;
-    process.stdout.write('step "' + label + '": ' + got + ' email(s), expected ' + expectDelta + '\n');
-    if (got !== expectDelta) throw new Error('step "' + label + '" expected ' + expectDelta + ' email(s), got ' + got);
-  }
-
-  await api('/workflows/' + created.id + '/deactivate', { method: 'POST' }).catch(() => {});
-  process.stdout.write('e2e passed: ' + captured.length + ' emails captured, expected ' + expectedTotal + '\n');
-  mock.close();
-  sink.close();
-  process.exit(0);
+  const failed = results.filter((x) => !x).length;
+  console.log(`\ne2e summary: ${results.length - failed}/${results.length} passed`);
+  process.exit(failed ? 1 : 0);
 }
-
-main().catch((err) => {
-  process.stderr.write('e2e failed: ' + err.stack + '\n');
-  mock.close();
-  sink.close();
-  process.exit(1);
-});
+main().catch((e) => { console.error('e2e crashed:', e); process.exit(2); });

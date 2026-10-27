@@ -59,7 +59,7 @@ export const DEFAULT_NOW = Date.parse('2026-10-27T12:00:00Z');
 // returns (an array of items). The code uses top-level `return`, so we wrap it in
 // a function expression and evaluate that.
 export function runCode(jsCode, globals) {
-  const sandbox = Object.assign({ console, URL, Date: globals.Date || Date }, globals);
+  const sandbox = Object.assign({ console, Date: globals.Date || Date }, globals);
   vm.createContext(sandbox);
   const wrapped = '(function () {\n' + jsCode + '\n})()';
   const result = vm.runInContext(wrapped, sandbox, { timeout: 3000, filename: 'code-node.js' });
