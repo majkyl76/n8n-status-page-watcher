@@ -207,6 +207,43 @@ function recoveredEvent(origin) {
   };
 }
 
+// The lines for one numbered event, shared by renderText and the single-event
+// hard-cut fallback below so both render the event body the same way.
+function eventTextLines(e, n) {
+  const lines = [];
+  lines.push(n + '. ' + e.type.toUpperCase() + ' - ' + e.title);
+  const meta = [];
+  if (e.impact) meta.push('Impact: ' + e.impact);
+  if (e.status) meta.push('Status: ' + e.status);
+  if (meta.length) lines.push('   ' + meta.join(' | '));
+  if (e.components.length) lines.push('   Components: ' + e.components.join(', '));
+  if (e.update) lines.push('   Update: ' + e.update);
+  const times = [];
+  if (e.startTime) times.push('Started: ' + e.startTime);
+  if (e.updateTime) times.push('Updated: ' + e.updateTime);
+  if (times.length) lines.push('   ' + times.join(' | '));
+  if (e.link) lines.push('   Link: ' + e.link);
+  return lines;
+}
+
+// The HTML fragment for one event (the inside of its <li>), shared the same way.
+function eventHtmlBits(e) {
+  const bits = [];
+  bits.push('<strong>' + escapeHtml(e.type.toUpperCase()) + '</strong> - ' + escapeHtml(e.title));
+  const meta = [];
+  if (e.impact) meta.push('Impact: ' + escapeHtml(e.impact));
+  if (e.status) meta.push('Status: ' + escapeHtml(e.status));
+  if (meta.length) bits.push('<br/>' + meta.join(' | '));
+  if (e.components.length) bits.push('<br/>Components: ' + escapeHtml(e.components.join(', ')));
+  if (e.update) bits.push('<br/>Update: ' + escapeHtml(e.update));
+  const times = [];
+  if (e.startTime) times.push('Started: ' + escapeHtml(e.startTime));
+  if (e.updateTime) times.push('Updated: ' + escapeHtml(e.updateTime));
+  if (times.length) bits.push('<br/>' + times.join(' | '));
+  if (e.link) bits.push('<br/><a href="' + escapeHtml(e.link) + '">' + escapeHtml(e.link) + '</a>');
+  return bits;
+}
+
 function renderText(label, origin, shown, hiddenCount, nowStr) {
   const lines = [];
   lines.push('Status page: ' + label + ' (' + origin + ')');
@@ -214,18 +251,7 @@ function renderText(label, origin, shown, hiddenCount, nowStr) {
   lines.push('');
   let n = 1;
   for (const e of shown) {
-    lines.push(n + '. ' + e.type.toUpperCase() + ' - ' + e.title);
-    const meta = [];
-    if (e.impact) meta.push('Impact: ' + e.impact);
-    if (e.status) meta.push('Status: ' + e.status);
-    if (meta.length) lines.push('   ' + meta.join(' | '));
-    if (e.components.length) lines.push('   Components: ' + e.components.join(', '));
-    if (e.update) lines.push('   Update: ' + e.update);
-    const times = [];
-    if (e.startTime) times.push('Started: ' + e.startTime);
-    if (e.updateTime) times.push('Updated: ' + e.updateTime);
-    if (times.length) lines.push('   ' + times.join(' | '));
-    if (e.link) lines.push('   Link: ' + e.link);
+    lines.push(...eventTextLines(e, n));
     lines.push('');
     n++;
   }
@@ -238,57 +264,55 @@ function renderHtml(label, origin, shown, hiddenCount, nowStr) {
   parts.push('<p>Status page: <strong>' + escapeHtml(label) + '</strong> (' + escapeHtml(origin) + ')<br/>Checked at ' + escapeHtml(nowStr) + '</p>');
   parts.push('<ol>');
   for (const e of shown) {
-    const bits = [];
-    bits.push('<strong>' + escapeHtml(e.type.toUpperCase()) + '</strong> - ' + escapeHtml(e.title));
-    const meta = [];
-    if (e.impact) meta.push('Impact: ' + escapeHtml(e.impact));
-    if (e.status) meta.push('Status: ' + escapeHtml(e.status));
-    if (meta.length) bits.push('<br/>' + meta.join(' | '));
-    if (e.components.length) bits.push('<br/>Components: ' + escapeHtml(e.components.join(', ')));
-    if (e.update) bits.push('<br/>Update: ' + escapeHtml(e.update));
-    const times = [];
-    if (e.startTime) times.push('Started: ' + escapeHtml(e.startTime));
-    if (e.updateTime) times.push('Updated: ' + escapeHtml(e.updateTime));
-    if (times.length) bits.push('<br/>' + times.join(' | '));
-    if (e.link) bits.push('<br/><a href="' + escapeHtml(e.link) + '">' + escapeHtml(e.link) + '</a>');
-    parts.push('<li>' + bits.join('') + '</li>');
+    parts.push('<li>' + eventHtmlBits(e).join('') + '</li>');
   }
   parts.push('</ol>');
   if (hiddenCount > 0) parts.push('<p>+' + escapeHtml(hiddenCount) + ' more events not shown</p>');
   return parts.join('\n');
 }
 
-// Cut text to at most "max" characters without splitting a surrogate pair.
-// Only used as the last-resort hard cut below, when a single event is itself
-// too large to fit (AC10/AC17, review F1).
-function hardCutText(text) {
-  return text.length > MAX_BODY_CHARS ? trimLoneSurrogate(text.slice(0, MAX_BODY_CHARS)) : text;
-}
+// Last resort when even the single most severe event does not fit under the
+// cap on its own (AC10/AC17, review 2 F1): build the header and footer first
+// and reserve their length, then hard-cut only that one event's own rendered
+// fragment to fit what is left, and reassemble. That way the footer (and the
+// count it reports) always survives, instead of a blind cut of the whole
+// already-assembled string landing before the footer and dropping it.
+function hardCutSingleEventBodies(label, origin, event, hiddenCount, nowStr) {
+  const headerText = 'Status page: ' + label + ' (' + origin + ')\n' + 'Checked at ' + nowStr + '\n\n';
+  const footerText = hiddenCount > 0 ? '\n\n+' + hiddenCount + ' more events not shown' : '';
+  const textBudget = Math.max(0, MAX_BODY_CHARS - headerText.length - footerText.length);
+  const eventText = trimLoneSurrogate(eventTextLines(event, 1).join('\n').slice(0, textBudget));
+  const text = (headerText + eventText + footerText).trim();
 
-function hardCutHtml(html) {
-  return html.length > MAX_BODY_CHARS ? truncateHtml(html, MAX_BODY_CHARS) : html;
+  const headerHtml = '<p>Status page: <strong>' + escapeHtml(label) + '</strong> (' + escapeHtml(origin) + ')<br/>Checked at ' + escapeHtml(nowStr) + '</p>\n<ol>\n<li>';
+  const footerHtml = '</li>\n</ol>' + (hiddenCount > 0 ? '\n<p>+' + escapeHtml(hiddenCount) + ' more events not shown</p>' : '');
+  const htmlBudget = Math.max(0, MAX_BODY_CHARS - headerHtml.length - footerHtml.length);
+  const eventHtml = truncateHtml(eventHtmlBits(event).join(''), htmlBudget);
+  const html = headerHtml + eventHtml + footerHtml;
+
+  return { text: text, html: html };
 }
 
 // Render both bodies, dropping events from the end of the (severity-sorted)
 // list and recomputing the "+N more" count until both fit under the cap. This
 // keeps the footer that discloses the cap instead of silently losing it to a
-// blind cut partway through the list (review F1). Only if a single remaining
-// event is still too large on its own do we fall back to a hard cut of that
-// one event's rendered text.
+// blind cut partway through the list (review F1). Only if the single most
+// severe event remaining is still too large on its own do we fall back to a
+// hard cut of that one event's rendered text (review 2 F1).
 function renderBodies(label, origin, sorted, cap, nowStr) {
   const maxShown = Math.min(cap, sorted.length);
-  let text = '';
-  let html = '';
   for (let shownCount = maxShown; shownCount >= 1; shownCount--) {
     const shown = sorted.slice(0, shownCount);
     const hiddenCount = sorted.length - shownCount;
-    text = renderText(label, origin, shown, hiddenCount, nowStr);
-    html = renderHtml(label, origin, shown, hiddenCount, nowStr);
+    const text = renderText(label, origin, shown, hiddenCount, nowStr);
+    const html = renderHtml(label, origin, shown, hiddenCount, nowStr);
     if (text.length <= MAX_BODY_CHARS && html.length <= MAX_BODY_CHARS) {
       return { text: text, html: html };
     }
+    if (shownCount === 1) {
+      return hardCutSingleEventBodies(label, origin, shown[0], hiddenCount, nowStr);
+    }
   }
-  return { text: hardCutText(text), html: hardCutHtml(html) };
 }
 
 const out = [];
@@ -354,7 +378,11 @@ for (let i = 0; i < pageItems.length; i++) {
       const resolved = isResolved(status);
       const passes = impactRank(impact) >= impactRank(settings.minimumImpact) && componentMatch(incident, settings.componentKeywords);
 
-      const prev = Object.hasOwn(ps.incidents, id) ? ps.incidents[id] : undefined;
+      const stored = Object.hasOwn(ps.incidents, id) ? ps.incidents[id] : undefined;
+      // A null or otherwise non-object stored record (an old/different schema,
+      // or hand-edited state) is treated like a first-seen incident instead of
+      // crashing the whole run (review 2 F2).
+      const prev = stored && typeof stored === 'object' ? stored : undefined;
 
       if (prev === undefined) {
         // First time we have seen this incident id.
