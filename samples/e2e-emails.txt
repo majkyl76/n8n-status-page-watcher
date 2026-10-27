@@ -3,14 +3,14 @@ Subject: [Status] Mock A: 1 new event - Errors <script>alert(1)</script> & "quot
 To: me@example.com
 From: alerts@example.com
 
-Status page: Mock A (http://127.0.0.1:41131)
-Checked at 2026-10-27 02:11 UTC
+Status page: Mock A (http://127.0.0.1:36021)
+Checked at 2026-10-27 02:14 UTC
 
 1. NEW - Errors <script>alert(1)</script> & "quotes"
    Impact: major | Status: investigating
    Components: API
    Update: We are looking into it.
-   Started: 2026-10-27 01:41 UTC | Updated: 2026-10-27 02:10 UTC
+   Started: 2026-10-27 01:44 UTC | Updated: 2026-10-27 02:13 UTC
    Link: https://stspg.io/e2e1
 
 
@@ -19,14 +19,14 @@ Subject: [Status] Mock A: 1 new event - Errors <script>alert(1)</script> & "quot
 To: me@example.com
 From: alerts@example.com
 
-Status page: Mock A (http://127.0.0.1:41131)
-Checked at 2026-10-27 02:12 UTC
+Status page: Mock A (http://127.0.0.1:36021)
+Checked at 2026-10-27 02:15 UTC
 
 1. RESOLVED - Errors <script>alert(1)</script> & "quotes"
    Impact: major | Status: resolved
    Components: API
    Update: All fixed.
-   Started: 2026-10-27 01:42 UTC | Updated: 2026-10-27 02:12 UTC
+   Started: 2026-10-27 01:44 UTC | Updated: 2026-10-27 02:14 UTC
    Link: https://stspg.io/e2e1
 
 
@@ -35,12 +35,12 @@ Subject: [Status] Mock A: 1 new event - Status page unreachable
 To: me@example.com
 From: alerts@example.com
 
-Status page: Mock A (http://127.0.0.1:41131)
-Checked at 2026-10-27 02:12 UTC
+Status page: Mock A (http://127.0.0.1:36021)
+Checked at 2026-10-27 02:15 UTC
 
 1. UNREACHABLE - Status page unreachable
    Update: The status page did not return valid incident data for 2 checks in a row.
-   Link: http://127.0.0.1:41131
+   Link: http://127.0.0.1:36021
 
 
 ===== recovered =====
@@ -48,9 +48,9 @@ Subject: [Status] Mock A: 1 new event - Status page reachable again
 To: me@example.com
 From: alerts@example.com
 
-Status page: Mock A (http://127.0.0.1:41131)
-Checked at 2026-10-27 02:12 UTC
+Status page: Mock A (http://127.0.0.1:36021)
+Checked at 2026-10-27 02:15 UTC
 
 1. RECOVERED - Status page reachable again
    Update: The status page returned valid incident data again.
-   Link: http://127.0.0.1:41131
+   Link: http://127.0.0.1:36021

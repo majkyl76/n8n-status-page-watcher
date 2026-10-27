@@ -1,0 +1,36 @@
+imported workflow UxvJk2Kx8rRKpQFl with 13 nodes
+activated, schedule every 6s; mock A :36021, mock B (real GitHub fixture) :34727, SMTP sink :42331
+-- phase baseline: execution 295 success, emails=0
+PASS baseline: execution succeeded and both pages were fetched
+PASS baseline: no emails (only resolved history on the real fixture, nothing on mock A)
+-- phase new: execution 298 success, emails=1
+     subject: [Status] Mock A: 1 new event - Errors <script>alert(1)</script> & "quotes"
+PASS new: one email for the new incident
+PASS new: HTML body escapes hostile incident text
+-- phase nochange: execution 303 success, emails=0
+PASS nochange: static data persisted, nothing repeated
+-- phase update: execution 306 success, emails=1
+     subject: [Status] Mock A: 1 new event - Errors <script>alert(1)</script> & "quotes"
+PASS update: one email for the update
+-- phase resolved: execution 309 success, emails=1
+     subject: [Status] Mock A: 1 new event - Errors <script>alert(1)</script> & "quotes"
+PASS resolved: one resolved email
+-- phase resolved-again: execution 312 success, emails=0
+PASS resolved-again: nothing repeated
+-- phase outage-1: execution 314 success, emails=0
+PASS outage 1 of 2: no email yet, other page still checked
+-- phase outage-2: execution 319 success, emails=1
+     subject: [Status] Mock A: 1 new event - Status page unreachable
+PASS outage 2 of 2: one "unreachable" email for Mock A only
+-- phase outage-3: execution 326 success, emails=0
+PASS outage 3: still down, no repeat
+-- phase recovery: execution 333 success, emails=1
+     subject: [Status] Mock A: 1 new event - Status page reachable again
+PASS recovery: one "recovered" email and no repeated old incident
+-- phase steady: execution 336 success, emails=0
+PASS steady: quiet again
+-- phase connection-refused: execution 338 success, emails=1
+     subject: [Status] Dead host: 1 new event - Status page unreachable
+PASS connection refused: run still succeeds and one "unreachable" email is sent
+
+e2e summary: 14/14 passed
