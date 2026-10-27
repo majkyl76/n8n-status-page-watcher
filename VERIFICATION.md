@@ -9,12 +9,13 @@ Run on 2026-10-27 (Europe/Warsaw) with Node 24.22.1 and a local n8n 2.44.7.
 | AC6, AC9 | New, update and resolved events, state caps | `npm test` | pass | `tests/events.test.mjs`, real GitHub, Cloudflare and OpenAI fixtures |
 | AC7 | Impact and component filters | `npm test` | pass | `tests/filters.test.mjs` |
 | AC8 | Failures, one unreachable email, recovery | `npm test` | pass | `tests/failures.test.mjs` |
-| AC10 | Email subject, text and escaped HTML | `npm test` | pass | `tests/email.test.mjs`, `samples/alert-email.*` |
+| AC10, AC17 | Email subject, text, escaped HTML, length and surrogate limits | `npm test` | pass | `tests/email.test.mjs`, `samples/alert-email.*` |
 | AC11, AC12 | Honest limits, copy quality | `npm test`, `npm run lint:copy` | pass, 0 issues | `tests/copy.test.mjs` |
-| AC13 | Property and golden tests | `npm test` | pass | `tests/property-golden.test.mjs` |
+| AC13, AC15, AC16 | Property and golden tests, resolution-after-alert, out-of-order timestamps | `npm test` | pass | `tests/property-golden.test.mjs`, `tests/events.test.mjs` |
 | AC14, AC19 | Live run in local n8n | `N8N_URL=... N8N_API_KEY=... npm run e2e` | 14 of 14 checks pass, two runs in a row after review 2 | `samples/e2e-run.txt`, `samples/e2e-emails.txt` |
+| AC18 | Sandbox globals (no `URL`, `Buffer`, `structuredClone`) | `npm test` | pass | `tests/guidelines.test.mjs` |
 
-Unit tests: 116 run, 116 pass, 0 fail (`npm test`, 27 Oct 2026, after review 2 final fixes and F1/F2/F3 triage).
+Unit tests: 118 run, 118 pass, 0 fail (`npm test`, 27 Oct 2026, after review 3 F1/F2 fixes and F3/F4 triage).
 
 ## What the live run exercised
 

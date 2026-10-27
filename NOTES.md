@@ -86,9 +86,9 @@ recorded below.
 `npm test` runs `node scripts/build.mjs && node --test`:
 
 ```
-tests 116
+tests 118
 suites 0
-pass 116
+pass 118
 fail 0
 skipped 0
 todo 0
@@ -96,13 +96,24 @@ todo 0
 
 Mapping of test files to acceptance criteria:
 
-- tests/guidelines.test.mjs : AC1, AC2, AC3, AC5
+- tests/guidelines.test.mjs : AC1, AC2, AC3, AC5, AC18 (sandbox-globals test)
 - tests/config.test.mjs     : AC4
-- tests/events.test.mjs      : AC6, AC9
+- tests/events.test.mjs      : AC6, AC9, AC15, AC16
 - tests/filters.test.mjs     : AC7
 - tests/failures.test.mjs    : AC8
-- tests/email.test.mjs       : AC10
+- tests/email.test.mjs       : AC10, AC17
 - tests/copy.test.mjs        : AC11, AC12
-- tests/property-golden.test.mjs : AC13
+- tests/property-golden.test.mjs : AC13, AC15, AC16
 - tests/build.test.mjs       : workflow.json freshness and src/ parity
 - AC14 is the PM-run live test, `scripts/e2e.mjs`.
+
+## Known limits
+
+- **Licence/license noun-vs-verb heuristic (review 3 F3).** `scripts/lint-lib.mjs`'s
+  `hasLicenseNounUse` only recognises verb use when the adjacent word is a modal/
+  pronoun/determiner immediately next to "license(s)"; an intervening adverb
+  ("will routinely license", "may happily license") defeats it and the correct
+  British verb spelling gets flagged as the American noun. This is an advisory
+  heuristic, not a hard gate: no shipped copy (README.md, LISTING.md, the sticky
+  notes) currently contains the word at all, so it flags nothing today. Left as a
+  known limit rather than fixed, per PM triage.
