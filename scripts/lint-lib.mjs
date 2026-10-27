@@ -1,6 +1,5 @@
-// Shared copy checks for README.md, LISTING.md and the sticky note text.
-// Enforces the assistant.md writing rules: no em dashes, no banned words, British
-// spelling. Used by both `npm run lint:copy` and the copy test.
+// Shared copy checks for README.md and the sticky note text: no em dashes, no
+// banned words, British spelling. Used by both `npm run lint:copy` and the copy test.
 
 export const BANNED_WORDS = [
   'excited', 'leverage', 'seamless', 'robust', 'cutting-edge', 'streamline',
@@ -8,7 +7,7 @@ export const BANNED_WORDS = [
   'effortless', 'supercharge', 'unlock',
 ];
 
-// American spellings whose British form is required (AC12). Each maps to its fix.
+// American spellings whose British form is required. Each maps to its fix.
 export const AMERICAN_SPELLINGS = {
   organize: 'organise', organized: 'organised', organizing: 'organising', organization: 'organisation',
   color: 'colour', colored: 'coloured', colors: 'colours',
@@ -22,8 +21,7 @@ export const AMERICAN_SPELLINGS = {
 // "licence" (noun) vs "license" (verb) is a British/American split unlike the
 // pairs above: in British English the verb keeps the "s" spelling too, so a
 // plain word match would wrongly flag "to license". The determiner-led check
-// this replaced missed multi-adjective and sentence-initial noun use (review
-// F3), so flag "license"/"licenses" as the noun by default, and only exempt
+// this replaced missed multi-adjective and sentence-initial noun use, so flag "license"/"licenses" as the noun by default, and only exempt
 // it when either the preceding word marks verb use (a modal/auxiliary, "to",
 // or a subject pronoun) or the following word is a determiner/pronoun
 // introducing a direct object ("license their data", "license this

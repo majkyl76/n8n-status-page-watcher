@@ -1,4 +1,4 @@
-// AC11: honest limits are documented. AC12: copy quality.
+// The limits are documented and the copy passes the writing checks.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,21 +15,17 @@ function read(name) {
   return readFileSync(p, 'utf8');
 }
 
-test('AC12: README passes the copy checks', () => {
+test('README passes the copy checks', () => {
   assert.deepEqual(lintText('README', read('README.md')), []);
 });
 
-test('AC12: LISTING passes the copy checks', () => {
-  assert.deepEqual(lintText('LISTING', read('LISTING.md')), []);
-});
-
-test('AC12: sticky note text passes the copy checks', () => {
+test('sticky note text passes the copy checks', () => {
   const issues = [];
   for (const text of stickyTexts(workflow)) issues.push(...lintText('sticky', text));
   assert.deepEqual(issues, []);
 });
 
-test('AC12: lint flags the noun "license" (review F3) but not the verb "to license"', () => {
+test('lint flags the noun "license" but not the verb "to license"', () => {
   const nounCases = [
     'This project is released under the MIT license.',
     'See the license for details.',
@@ -53,7 +49,7 @@ test('AC12: lint flags the noun "license" (review F3) but not the verb "to licen
   }
 });
 
-test('AC12: lint flags license noun uses missed before the fix (review 2 F3)', () => {
+test('lint flags license noun uses missed before the fix', () => {
   const missedNounCases = [
     'This has a permissive open source software license.',
     'License terms are at the end.',
@@ -64,7 +60,7 @@ test('AC12: lint flags license noun uses missed before the fix (review 2 F3)', (
   }
 });
 
-test('AC12: lint does not flag verb uses marked by a preceding modal or pronoun (review 2 F3)', () => {
+test('lint does not flag verb uses marked by a preceding modal or pronoun', () => {
   const verbCases = [
     'You must license the software before use.',
     'They will license it next month.',
@@ -81,23 +77,19 @@ test('AC12: lint does not flag verb uses marked by a preceding modal or pronoun 
 function statesLimits(label, text) {
   const t = text.toLowerCase();
   assert.ok(/statuspage v2/.test(t), label + ' names Statuspage v2 support');
-  assert.ok(/github/.test(t) && /cloudflare/.test(t) && /status feed/.test(t), label + ' lists the three tested vendors');
+  assert.ok(/github/.test(t) && /cloudflare/.test(t) && /npm/.test(t), label + ' lists the three tested vendors');
   assert.ok(/maintenance/.test(t), label + ' notes maintenance windows are ignored');
   assert.ok(/static data/.test(t) && /active/.test(t), label + ' notes the static-data limit');
   assert.ok(/first run/.test(t), label + ' notes first-run behaviour');
 }
 
-test('AC11: README documents the honest limits', () => {
+test('README documents the honest limits', () => {
   const t = read('README.md').toLowerCase();
   statesLimits('README', read('README.md'));
   assert.ok(/not real ?time|polling/.test(t), 'README notes polling is not real time');
 });
 
-test('AC11: LISTING documents the honest limits', () => {
-  statesLimits('LISTING', read('LISTING.md'));
-});
-
-test('AC11: the main sticky documents the key limits', () => {
+test('the main sticky documents the key limits', () => {
   const main = stickyTexts(workflow).find((t) => t.includes('### How it works'));
   assert.ok(main, 'main sticky found');
   const t = main.toLowerCase();
