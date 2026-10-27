@@ -55,6 +55,17 @@ test('AC17: subject is at most 149 characters for titles of every length around 
   }
 });
 
+test('AC17: subject is at most 149 for a contiguous range of title lengths (hits the exact-150 boundary)', () => {
+  // The spec says "at most 149 for any title". A title whose subject lands on
+  // exactly 150 is the one the "> 149" guard must catch (a "> 150" guard lets it
+  // through). Sweep a contiguous range so the boundary is hit whatever the prefix.
+  for (let len = 110; len <= 170; len++) {
+    const body = { page: {}, incidents: [incident({ id: 'o1', name: 'z'.repeat(len), status: 'investigating', impact: 'major' })] };
+    const email = detectOne(body);
+    assert.ok(email.subject.length <= 149, 'title ' + len + ' gave subject length ' + email.subject.length);
+  }
+});
+
 test('AC17: update text in the email is at most 500 characters including the ellipsis', () => {
   const bodies = ['word '.repeat(300), 'x'.repeat(900), 'a'.repeat(499) + ' ' + 'b'.repeat(50), 'w'.repeat(500), 'w'.repeat(501)];
   for (const text of bodies) {
