@@ -75,7 +75,7 @@ function decodeEntities(value) {
 function truncateWords(value, max) {
   const text = String(value);
   if (text.length <= max) return text;
-  const cut = text.slice(0, max);
+  const cut = text.slice(0, max - 3);
   const lastSpace = cut.lastIndexOf(' ');
   const base = lastSpace > 0 ? cut.slice(0, lastSpace) : cut;
   return base + '...';
@@ -317,13 +317,19 @@ for (let i = 0; i < pageItems.length; i++) {
           if (passes) events.push(incidentEvent('new', incident, origin));
         }
       } else {
-        const changed = prev.status !== status || prev.updatedAt !== updatedAt || prev.impact !== impact;
+        const prevTime = Date.parse(prev.updatedAt);
+        const nextTime = Date.parse(updatedAt);
+        const bothTimes = !isNaN(prevTime) && !isNaN(nextTime);
+        // A later timestamp counts as a change. An older one (a stale cache or
+        // a load balancer serving an old copy) does not, and never moves state back.
+        const timeChanged = bothTimes ? nextTime > prevTime : prev.updatedAt !== updatedAt;
+        const keepOlder = bothTimes && nextTime < prevTime;
+        const changed = prev.status !== status || prev.impact !== impact || timeChanged;
         let notified = prev.notified === true;
         if (changed) {
           if (resolved) {
-            // Only alert a resolution for something we told the user about,
-            // or that would pass the filter now.
-            if (settings.alertOnResolved && (prev.notified === true || passes)) {
+            // Only alert a resolution for something we told the user about.
+            if (settings.alertOnResolved && prev.notified === true) {
               events.push(incidentEvent('resolved', incident, origin));
             }
           } else if (passes) {
@@ -331,7 +337,7 @@ for (let i = 0; i < pageItems.length; i++) {
             notified = true;
           }
         }
-        nextIncidents[id] = { status: status, updatedAt: updatedAt, impact: impact, notified: notified };
+        nextIncidents[id] = { status: status, updatedAt: keepOlder ? prev.updatedAt : updatedAt, impact: impact, notified: notified };
       }
     }
 
@@ -348,9 +354,11 @@ for (let i = 0; i < pageItems.length; i++) {
     const mostSevere = sorted[0];
     const n = events.length;
 
-    let subject = '[Status] ' + label + ': ' + n + ' new event' + (n === 1 ? '' : 's') + ' - ' + mostSevere.title;
+    const phrases = { new: 'new incident', update: 'update', resolved: 'resolved', unreachable: 'page unreachable', recovered: 'page recovered' };
+    const summary = n === 1 ? (phrases[mostSevere.type] || 'event') : n + ' events';
+    let subject = '[Status] ' + label + ': ' + summary + ' - ' + mostSevere.title;
     subject = subject.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
-    if (subject.length > 150) subject = subject.slice(0, 149);
+    if (subject.length > 149) subject = subject.slice(0, 149);
 
     const nowStr = fmtTime(new Date().toISOString());
 

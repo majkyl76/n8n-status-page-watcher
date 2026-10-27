@@ -45,17 +45,20 @@ function referenceRun(state, incidents, settings) {
         if (passes) events.push('new');
       }
     } else {
-      const changed = prev.status !== status || prev.updatedAt !== updatedAt || prev.impact !== impact;
+      // AC16: only a strictly later updated_at counts; AC15: resolved only after a real alert.
+      const later = Date.parse(updatedAt) > Date.parse(prev.updatedAt);
+      const changed = prev.status !== status || prev.impact !== impact || later;
+      const keptAt = Date.parse(updatedAt) < Date.parse(prev.updatedAt) ? prev.updatedAt : updatedAt;
       let notified = prev.notified === true;
       if (changed) {
         if (resolved) {
-          if (settings.alertOnResolved && (prev.notified === true || passes)) events.push('resolved');
+          if (settings.alertOnResolved && prev.notified === true) events.push('resolved');
         } else if (passes) {
           events.push('update');
           notified = true;
         }
       }
-      next[id] = { status, updatedAt, impact, notified };
+      next[id] = { status, updatedAt: keptAt, impact, notified };
     }
   }
   state.incidents = next;
