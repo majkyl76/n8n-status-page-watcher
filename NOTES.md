@@ -6,10 +6,10 @@ recorded below.
 
 ## Decisions on ambiguous points
 
-- **Subject pluralisation.** AC10 writes the format as `<N> new event(s)`. I read
-  the `(s)` as "pluralise correctly" rather than literal, so the subject reads
-  `1 new event` or `2 new events`. This is plainer British English. The golden test
-  and the AC10 tests assert this form.
+- **Subject format.** First draft read AC10's `<N> new event(s)` literally. After review
+  the subject names the event type instead: `[Status] <Label>: <summary> - <title>`, where
+  the summary is `new incident`, `update`, `resolved`, `page unreachable` or `page recovered`
+  for one event, and `N events` for several. The subject is at most 149 characters (AC17).
 - **`ignoreIncidentsOlderThanHours`.** Per the event rules, an already-resolved
   incident seen for the first time is history and never alerts, so the setting
   cannot change which events fire. I kept it as a storage bound: a first-seen
@@ -23,10 +23,10 @@ recorded below.
   change in `scripts/build.mjs` if the PM prefers the literal number.
 - **Email format.** `emailFormat: 'both'` so every email carries plain text and
   HTML. The workflow always builds both bodies.
-- **Update text truncation.** Cut to 500 characters at a word boundary, then an
-  ellipsis is added, so the field can be up to 503 characters. HTML and plain text
-  both strip the vendor's inline HTML (for example `<br />`) first; the HTML body
-  then escapes everything, so hostile input cannot inject markup.
+- **Update text truncation.** At most 500 characters including the ellipsis, cut at a
+  word boundary. HTML and plain text both strip the vendor's inline HTML (for example
+  `<br />`) first; the HTML body then escapes everything, so hostile input cannot inject
+  markup.
 - **"Customization" heading.** AC2 lists the optional sticky heading as
   `### Customization` (n8n's own spelling). I kept that exact heading to match the
   guideline; the copy linter does not flag it.
