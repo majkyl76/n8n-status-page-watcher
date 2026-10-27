@@ -1,0 +1,47 @@
+[
+  {
+    "pageKey": "https://www.githubstatus.com",
+    "label": "GitHub",
+    "apiUrl": "https://www.githubstatus.com/api/v2/incidents.json",
+    "settings": {
+      "minimumImpact": "minor",
+      "componentKeywords": [],
+      "alertOnResolved": true,
+      "failuresBeforeAlert": 3,
+      "ignoreIncidentsOlderThanHours": 48,
+      "maxIncidentsPerPage": 10,
+      "fromEmail": "alerts@example.com",
+      "toEmail": "me@example.com"
+    }
+  },
+  {
+    "pageKey": "https://www.cloudflarestatus.com",
+    "label": "Cloudflare",
+    "apiUrl": "https://www.cloudflarestatus.com/api/v2/incidents.json",
+    "settings": {
+      "minimumImpact": "minor",
+      "componentKeywords": [],
+      "alertOnResolved": true,
+      "failuresBeforeAlert": 3,
+      "ignoreIncidentsOlderThanHours": 48,
+      "maxIncidentsPerPage": 10,
+      "fromEmail": "alerts@example.com",
+      "toEmail": "me@example.com"
+    }
+  },
+  {
+    "pageKey": "https://status.status feed.com",
+    "label": "status feed",
+    "apiUrl": "https://status.status feed.com/api/v2/incidents.json",
+    "settings": {
+      "minimumImpact": "minor",
+      "componentKeywords": [],
+      "alertOnResolved": true,
+      "failuresBeforeAlert": 3,
+      "ignoreIncidentsOlderThanHours": 48,
+      "maxIncidentsPerPage": 10,
+      "fromEmail": "alerts@example.com",
+      "toEmail": "me@example.com"
+    }
+  }
+]

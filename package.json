@@ -1,0 +1,15 @@
+{
+  "name": "n8n-status-page-watcher",
+  "version": "1.0.0",
+  "description": "n8n template: email me when a vendor status page reports an incident",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs && node --test",
+    "lint:copy": "node scripts/lint-copy.mjs",
+    "samples": "node scripts/samples.mjs",
+    "e2e": "node scripts/e2e.mjs"
+  }
+}
