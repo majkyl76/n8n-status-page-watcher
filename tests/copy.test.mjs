@@ -53,6 +53,31 @@ test('AC12: lint flags the noun "license" (review F3) but not the verb "to licen
   }
 });
 
+test('AC12: lint flags license noun uses missed before the fix (review 2 F3)', () => {
+  const missedNounCases = [
+    'This has a permissive open source software license.',
+    'License terms are at the end.',
+  ];
+  for (const text of missedNounCases) {
+    const issues = lintText('test', text);
+    assert.ok(issues.some((i) => i.includes('license')), 'should flag noun use: ' + text);
+  }
+});
+
+test('AC12: lint does not flag verb uses marked by a preceding modal or pronoun (review 2 F3)', () => {
+  const verbCases = [
+    'You must license the software before use.',
+    'They will license it next month.',
+    'We can license this technology to partners.',
+    'I shall license the code under these terms.',
+    'Should we license this component separately?',
+  ];
+  for (const text of verbCases) {
+    const issues = lintText('test', text);
+    assert.deepEqual(issues.filter((i) => i.includes('license')), [], 'should not flag verb use: ' + text);
+  }
+});
+
 function statesLimits(label, text) {
   const t = text.toLowerCase();
   assert.ok(/statuspage v2/.test(t), label + ' names Statuspage v2 support');

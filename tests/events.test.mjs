@@ -185,6 +185,22 @@ test('AC9: odd page labels do not break the run', () => {
   assert.equal(out[0].json.label, '__proto__');
 });
 
+test('AC9: a null stored incident record is treated as first-seen, not a crash (review 2 F2)', () => {
+  const state = { pages: { [PAGE.pageKey]: { incidents: { a: null }, failures: 0, failureAlerted: false, initialised: true } } };
+  const body = { page: {}, incidents: [incident({ id: 'a', status: 'investigating', impact: 'major' })] };
+  const out = detect([okResponse(body)], defaultSettings(), state);
+  assert.deepEqual(eventTypes(out), ['new'], 'an open incident passing the filter gives a normal new event');
+  assert.equal(state.pages[PAGE.pageKey].incidents.a.notified, true);
+});
+
+test('AC9: a string stored incident record is treated as first-seen, not a crash (review 2 F2)', () => {
+  const state = { pages: { [PAGE.pageKey]: { incidents: { a: 'stale-from-an-old-schema' }, failures: 0, failureAlerted: false, initialised: true } } };
+  const body = { page: {}, incidents: [incident({ id: 'a', status: 'investigating', impact: 'major' })] };
+  const out = detect([okResponse(body)], defaultSettings(), state);
+  assert.deepEqual(eventTypes(out), ['new'], 'an open incident passing the filter gives a normal new event, not an update');
+  assert.equal(state.pages[PAGE.pageKey].incidents.a.notified, true);
+});
+
 test('AC15: a resolved incident first seen as history, then edited later, emits nothing', () => {
   const state = { pages: {} };
   const resolvedAt = (updated) => ({ page: {}, incidents: [incident({ id: 'h1', status: 'resolved', impact: 'major', updated_at: updated, resolved_at: '2026-10-27T09:00:00Z' })] });

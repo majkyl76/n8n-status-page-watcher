@@ -264,3 +264,41 @@ test('AC10: a realistic multi-incident page keeps the "+N more" footer and never
   assert.ok(!/<[^>]*$/.test(email.html), 'html must not end mid-tag: ' + JSON.stringify(email.html.slice(-30)));
   assert.ok(/<\/ol>$/.test(email.html) || /<\/p>$/.test(email.html), 'html ends with a closed tag');
 });
+
+test('AC10: a 6500-character ampersand incident name forces the HTML fallback but the footer must survive in both bodies (review 2 F1)', () => {
+  const incidents = [
+    incident({ id: 'huge', name: '&'.repeat(6500), status: 'investigating', impact: 'critical' }),
+  ];
+  for (let i = 0; i < 5; i++) {
+    incidents.push(incident({ id: 'n' + i, name: 'Minor incident ' + i, status: 'investigating', impact: 'minor' }));
+  }
+  const email = detectOne({ page: {}, incidents }, defaultSettings({ maxIncidentsPerPage: 6 }));
+
+  assert.ok(email.text.length < 20000, 'text under 20000, got ' + email.text.length);
+  assert.ok(email.html.length < 20000, 'html under 20000, got ' + email.html.length);
+
+  assert.ok(email.text.includes('+5 more events not shown'), 'text footer names exactly the 5 hidden events, got: ' + JSON.stringify(email.text.slice(-60)));
+  assert.ok(email.html.includes('+5 more events not shown'), 'html footer names exactly the 5 hidden events, got: ' + JSON.stringify(email.html.slice(-80)));
+
+  assert.ok(!/<[^>]*$/.test(email.html), 'html must not end mid-tag: ' + JSON.stringify(email.html.slice(-30)));
+  assert.ok(!/&[a-zA-Z#0-9]*$/.test(email.html), 'html must not end mid-entity: ' + JSON.stringify(email.html.slice(-30)));
+});
+
+test('AC10: a single event whose own rendered text alone exceeds the cap still keeps the footer (review 2 F1)', () => {
+  const incidents = [
+    incident({ id: 'huge', name: 'x'.repeat(25000), status: 'investigating', impact: 'critical' }),
+  ];
+  for (let i = 0; i < 4; i++) {
+    incidents.push(incident({ id: 'n' + i, name: 'Minor incident ' + i, status: 'investigating', impact: 'minor' }));
+  }
+  const email = detectOne({ page: {}, incidents }, defaultSettings({ maxIncidentsPerPage: 5 }));
+
+  assert.ok(email.text.length < 20000, 'text under 20000, got ' + email.text.length);
+  assert.ok(email.html.length < 20000, 'html under 20000, got ' + email.html.length);
+
+  assert.ok(email.text.includes('+4 more events not shown'), 'text footer names exactly the 4 hidden events, got: ' + JSON.stringify(email.text.slice(-60)));
+  assert.ok(email.html.includes('+4 more events not shown'), 'html footer names exactly the 4 hidden events, got: ' + JSON.stringify(email.html.slice(-80)));
+
+  assert.ok(!/<[^>]*$/.test(email.html), 'html must not end mid-tag: ' + JSON.stringify(email.html.slice(-30)));
+  assert.ok(!/&[a-zA-Z#0-9]*$/.test(email.html), 'html must not end mid-entity: ' + JSON.stringify(email.html.slice(-30)));
+});
