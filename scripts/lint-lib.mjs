@@ -19,6 +19,14 @@ export const AMERICAN_SPELLINGS = {
   favor: 'favour', favorite: 'favourite',
 };
 
+// "licence" (noun) vs "license" (verb) is a British/American split unlike the
+// pairs above: in British English the verb keeps the "s" spelling too, so a
+// plain word match would wrongly flag "to license". Flag "license" only when
+// it is preceded by a determiner, "MIT", a possessive, or (allowing one
+// adjective in between) by one of those - a conservative marker of noun use
+// (review F3) that leaves "to license"/"we license" alone.
+const LICENSE_NOUN_RE = /\b(a|an|the|mit|its|our|their|my|your|his|her|[a-z]+'s)\s+(?:[a-z-]+\s+)?licenses?\b/i;
+
 // Returns an array of issue strings for one block of text. Empty means clean.
 export function lintText(label, text) {
   const issues = [];
@@ -41,6 +49,10 @@ export function lintText(label, text) {
     if (re.test(lower)) {
       issues.push(label + ': American spelling "' + bad + '" (use "' + good + '")');
     }
+  }
+
+  if (LICENSE_NOUN_RE.test(text)) {
+    issues.push(label + ': American spelling "license" (use "licence")');
   }
 
   return issues;

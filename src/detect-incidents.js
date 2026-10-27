@@ -230,9 +230,7 @@ function renderText(label, origin, shown, hiddenCount, nowStr) {
     n++;
   }
   if (hiddenCount > 0) lines.push('+' + hiddenCount + ' more events not shown');
-  let out = lines.join('\n').trim();
-  if (out.length > MAX_BODY_CHARS) out = out.slice(0, MAX_BODY_CHARS);
-  return out;
+  return lines.join('\n').trim();
 }
 
 function renderHtml(label, origin, shown, hiddenCount, nowStr) {
@@ -257,9 +255,40 @@ function renderHtml(label, origin, shown, hiddenCount, nowStr) {
   }
   parts.push('</ol>');
   if (hiddenCount > 0) parts.push('<p>+' + escapeHtml(hiddenCount) + ' more events not shown</p>');
-  let out = parts.join('\n');
-  if (out.length > MAX_BODY_CHARS) out = truncateHtml(out, MAX_BODY_CHARS);
-  return out;
+  return parts.join('\n');
+}
+
+// Cut text to at most "max" characters without splitting a surrogate pair.
+// Only used as the last-resort hard cut below, when a single event is itself
+// too large to fit (AC10/AC17, review F1).
+function hardCutText(text) {
+  return text.length > MAX_BODY_CHARS ? trimLoneSurrogate(text.slice(0, MAX_BODY_CHARS)) : text;
+}
+
+function hardCutHtml(html) {
+  return html.length > MAX_BODY_CHARS ? truncateHtml(html, MAX_BODY_CHARS) : html;
+}
+
+// Render both bodies, dropping events from the end of the (severity-sorted)
+// list and recomputing the "+N more" count until both fit under the cap. This
+// keeps the footer that discloses the cap instead of silently losing it to a
+// blind cut partway through the list (review F1). Only if a single remaining
+// event is still too large on its own do we fall back to a hard cut of that
+// one event's rendered text.
+function renderBodies(label, origin, sorted, cap, nowStr) {
+  const maxShown = Math.min(cap, sorted.length);
+  let text = '';
+  let html = '';
+  for (let shownCount = maxShown; shownCount >= 1; shownCount--) {
+    const shown = sorted.slice(0, shownCount);
+    const hiddenCount = sorted.length - shownCount;
+    text = renderText(label, origin, shown, hiddenCount, nowStr);
+    html = renderHtml(label, origin, shown, hiddenCount, nowStr);
+    if (text.length <= MAX_BODY_CHARS && html.length <= MAX_BODY_CHARS) {
+      return { text: text, html: html };
+    }
+  }
+  return { text: hardCutText(text), html: hardCutHtml(html) };
 }
 
 const out = [];
@@ -388,8 +417,6 @@ for (let i = 0; i < pageItems.length; i++) {
   if (events.length > 0) {
     const sorted = events.slice().sort(function (a, b) { return b.severity - a.severity; });
     const cap = settings.maxIncidentsPerPage;
-    const shown = sorted.slice(0, cap);
-    const hiddenCount = Math.max(0, events.length - cap);
     const mostSevere = sorted[0];
     const n = events.length;
 
@@ -400,6 +427,7 @@ for (let i = 0; i < pageItems.length; i++) {
     if (subject.length > 149) subject = trimLoneSurrogate(subject.slice(0, 149));
 
     const nowStr = fmtTime(new Date().toISOString());
+    const bodies = renderBodies(label, origin, sorted, cap, nowStr);
 
     out.push({
       json: {
@@ -408,8 +436,8 @@ for (let i = 0; i < pageItems.length; i++) {
         label: label,
         eventCount: n,
         subject: subject,
-        text: renderText(label, origin, shown, hiddenCount, nowStr),
-        html: renderHtml(label, origin, shown, hiddenCount, nowStr),
+        text: bodies.text,
+        html: bodies.html,
         fromEmail: settings.fromEmail,
         toEmail: settings.toEmail,
       },
