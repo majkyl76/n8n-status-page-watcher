@@ -54,9 +54,11 @@ or the API URL; the workflow reduces each to its origin.
 State is held per page in workflow static data: the id, status, impact and update
 time of each incident. A new unresolved id gives a new event. A known incident
 whose status, impact or update time changed gives an update, or a resolution if it
-is now resolved. A resolution is sent only for an incident you were told about. On
+is now resolved. A resolution is sent only for an incident you were told about. An older update time
+than the one stored is ignored. On
 the first run, only incidents that are still open are reported; resolved incidents
-are stored as history so you are not flooded.
+are stored as history so you are not flooded. The email subject names the event,
+for example `[Status] GitHub: new incident - <title>`.
 
 ## Limits
 
