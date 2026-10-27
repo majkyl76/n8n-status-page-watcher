@@ -24,6 +24,26 @@ function mulberry32(a) {
   };
 }
 
+// AC16, from the SPEC prose: compares a candidate "updated_at" against the
+// stored one. A strictly later timestamp is a change. An older, missing or
+// unparsable one is not a change "on its own", and must never overwrite a
+// known-good (parsable) stored timestamp. When the stored value itself is not
+// known-good, there is nothing to protect, so a plain text comparison decides
+// whether anything actually moved.
+function compareTimestamps(storedAt, candidateAt) {
+  const storedMs = Date.parse(storedAt);
+  const candidateMs = Date.parse(candidateAt);
+  const storedKnownGood = !Number.isNaN(storedMs);
+  const candidateValid = !Number.isNaN(candidateMs);
+  if (storedKnownGood && candidateValid) {
+    return { isLater: candidateMs > storedMs, keep: candidateMs < storedMs ? storedAt : candidateAt };
+  }
+  if (storedKnownGood && !candidateValid) {
+    return { isLater: false, keep: storedAt };
+  }
+  return { isLater: storedAt !== candidateAt, keep: candidateAt };
+}
+
 // Independent reference model of the event rules (success responses, one page,
 // minimumImpact=minor, no component filter, alertOnResolved=true).
 function referenceRun(state, incidents, settings) {
@@ -33,7 +53,7 @@ function referenceRun(state, incidents, settings) {
     const id = String(inc.id);
     const status = String(inc.status);
     const impact = typeof inc.impact === 'string' ? inc.impact : 'none';
-    const updatedAt = String(inc.updated_at);
+    const updatedAt = String(inc.updated_at || '');
     const resolved = RESOLVED.includes(status.toLowerCase());
     const passes = (RANK[impact] || 0) >= (RANK[settings.minimumImpact] || 0);
     const prev = state.incidents[id];
@@ -45,10 +65,9 @@ function referenceRun(state, incidents, settings) {
         if (passes) events.push('new');
       }
     } else {
-      // AC16: only a strictly later updated_at counts; AC15: resolved only after a real alert.
-      const later = Date.parse(updatedAt) > Date.parse(prev.updatedAt);
-      const changed = prev.status !== status || prev.impact !== impact || later;
-      const keptAt = Date.parse(updatedAt) < Date.parse(prev.updatedAt) ? prev.updatedAt : updatedAt;
+      // AC16: a strictly later updated_at counts; AC15: resolved only after a real alert.
+      const time = compareTimestamps(prev.updatedAt, updatedAt);
+      const changed = prev.status !== status || prev.impact !== impact || time.isLater;
       let notified = prev.notified === true;
       if (changed) {
         if (resolved) {
@@ -61,7 +80,7 @@ function referenceRun(state, incidents, settings) {
           notified = true;
         }
       }
-      next[id] = { status, updatedAt: keptAt, impact, notified };
+      next[id] = { status, updatedAt: time.keep, impact, notified };
     }
   }
   state.incidents = next;
@@ -98,12 +117,21 @@ test('AC13: random poll sequences match the reference model', () => {
       for (const id of ids) {
         if (rand() < 0.3) continue; // sometimes the incident is absent this run
         const revision = Math.floor(rand() * 6); // controls whether updated_at changes, including bumps after resolution
+        // AC16 (review F2): occasionally the vendor omits updated_at, or sends
+        // something that does not parse as a date. Both are fixed values (not
+        // keyed off "revision"), so repeats of the same kind compare equal.
+        const timestampRoll = rand();
+        const updatedAt = timestampRoll < 0.1
+          ? undefined
+          : timestampRoll < 0.2
+            ? 'not-a-real-timestamp'
+            : new Date(base + revision * 3600 * 1000).toISOString();
         incidents.push(incident({
           id,
           name: 'Incident ' + id,
           status: pick(statuses),
           impact: pick(impacts),
-          updated_at: new Date(base + revision * 3600 * 1000).toISOString(),
+          updated_at: updatedAt,
         }));
       }
       const out = runDetect(workflow, { pages: [PAGE], responses: [okResponse({ page: {}, incidents })], settings, staticData: nodeState, now: DEFAULT_NOW });

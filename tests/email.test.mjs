@@ -223,3 +223,44 @@ test('AC10: the HTML cap does not leave a dangling tag or entity at the cut (F-B
   assert.ok(!/<[^>]*$/.test(email.html), 'must not end mid-tag: ' + JSON.stringify(email.html.slice(-30)));
   assert.ok(!/&[a-zA-Z#0-9]*$/.test(email.html), 'must not end mid-entity: ' + JSON.stringify(email.html.slice(-30)));
 });
+
+test('AC10: a realistic multi-incident page keeps the "+N more" footer and never cuts an event mid-way (review F1)', () => {
+  const incidents = [];
+  for (let i = 0; i < 60; i++) {
+    const title = 'Elevated error rates on the payments API in region ' + String(i).padStart(3, '0'); // ~65 chars
+    const update = ('We are continuing to investigate the root cause of this incident and will post another update shortly. ').repeat(5).slice(0, 480);
+    incidents.push(incident({
+      id: 'n' + i,
+      name: title,
+      status: 'investigating',
+      impact: 'major',
+      incident_updates: [{ id: 'u' + i, status: 'investigating', body: update, created_at: '2026-10-27T10:30:00Z' }],
+    }));
+  }
+  const email = detectOne({ page: {}, incidents }, defaultSettings({ maxIncidentsPerPage: 50 }));
+
+  assert.ok(email.text.length < 20000, 'text under 20000, got ' + email.text.length);
+  assert.ok(email.html.length < 20000, 'html under 20000, got ' + email.html.length);
+
+  const shownNumbers = [...email.text.matchAll(/^(\d+)\.\sNEW - /gm)].map((m) => Number(m[1]));
+  const shownCount = shownNumbers.length;
+  assert.deepEqual(shownNumbers, Array.from({ length: shownCount }, (_, i) => i + 1), 'listed events are numbered contiguously from 1 (none dropped from the middle)');
+  assert.ok(shownCount > 0 && shownCount < 60, 'the cap must actually bite in this scenario, got ' + shownCount);
+
+  const hiddenCount = 60 - shownCount;
+  assert.ok(email.text.includes('+' + hiddenCount + ' more events not shown'), 'text footer names exactly the events not shown');
+  assert.ok(email.html.includes('+' + hiddenCount + ' more events not shown'), 'html footer names exactly the events not shown');
+
+  // Every listed event ends with its Link: line, so the last one before the
+  // footer must be complete, not a cut mid-event.
+  const textBeforeFooter = email.text.split('+' + hiddenCount + ' more events not shown')[0];
+  const lastNonBlankLine = textBeforeFooter.trimEnd().split('\n').pop();
+  assert.ok(lastNonBlankLine.trim().startsWith('Link:'), 'text ends with a complete last event, got: ' + JSON.stringify(lastNonBlankLine));
+
+  const liOpens = (email.html.match(/<li>/g) || []).length;
+  const liCloses = (email.html.match(/<\/li>/g) || []).length;
+  assert.equal(liOpens, liCloses, 'every <li> is closed, none cut mid-way');
+  assert.equal(liOpens, shownCount, 'html lists the same number of events as text');
+  assert.ok(!/<[^>]*$/.test(email.html), 'html must not end mid-tag: ' + JSON.stringify(email.html.slice(-30)));
+  assert.ok(/<\/ol>$/.test(email.html) || /<\/p>$/.test(email.html), 'html ends with a closed tag');
+});
