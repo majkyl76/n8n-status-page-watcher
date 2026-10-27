@@ -14,7 +14,7 @@ Run on 2026-10-27 (Europe/Warsaw) with Node 24.22.1 and a local n8n 2.44.7.
 | AC13 | Property and golden tests | `npm test` | pass | `tests/property-golden.test.mjs` |
 | AC14, AC19 | Live run in local n8n | `N8N_URL=... N8N_API_KEY=... npm run e2e` | 14 of 14 checks pass, two runs in a row after review 2 | `samples/e2e-run.txt`, `samples/e2e-emails.txt` |
 
-Unit tests: 103 run, 103 pass, 0 fail (`npm test`, 27 Oct 2026, after review 2).
+Unit tests: 108 run, 108 pass, 0 fail (`npm test`, 27 Oct 2026, after review 3 fixes).
 
 ## What the live run exercised
 
