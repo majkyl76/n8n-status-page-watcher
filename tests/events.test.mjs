@@ -230,3 +230,23 @@ test('AC16: a strictly later updated_at, or a changed status or impact, still co
   assert.deepEqual(eventTypes(detect([okResponse(at('2026-10-27T10:30:00Z', 'identified'))], defaultSettings(), state)), ['update'], 'status change counts even with an older timestamp');
   assert.deepEqual(eventTypes(detect([okResponse(at('2026-10-27T10:30:00Z', 'identified', 'critical'))], defaultSettings(), state)), ['update'], 'impact change counts');
 });
+
+test('AC16: a missing updated_at does not alert and does not overwrite the stored timestamp', () => {
+  const state = { pages: {} };
+  const present = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })] };
+  const missing = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: undefined })] };
+  detect([okResponse(present)], defaultSettings(), state);
+  assert.equal(detect([okResponse(missing)], defaultSettings(), state).length, 0, 'a dropped updated_at must not alert when status and impact are unchanged');
+  assert.equal(state.pages[PAGE.pageKey].incidents.o1.updatedAt, '2026-10-27T10:00:00Z', 'a missing updated_at must not overwrite a known-good one');
+  assert.equal(detect([okResponse(present)], defaultSettings(), state).length, 0, 'the same timestamp returning must not re-alert');
+});
+
+test('AC6: a reopened incident (resolved then investigating again) emits an update if it passes the filter', () => {
+  const state = { pages: {} };
+  const open = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })] };
+  detect([okResponse(open)], defaultSettings(), state);
+  const done = { page: {}, incidents: [incident({ id: 'o1', status: 'resolved', impact: 'major', updated_at: '2026-10-27T11:00:00Z' })] };
+  assert.deepEqual(eventTypes(detect([okResponse(done)], defaultSettings(), state)), ['resolved']);
+  const reopened = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T12:00:00Z' })] };
+  assert.deepEqual(eventTypes(detect([okResponse(reopened)], defaultSettings(), state)), ['update'], 'a reopened incident that passes the filter gives an update');
+});
