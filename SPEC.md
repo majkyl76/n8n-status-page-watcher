@@ -27,7 +27,7 @@ Maintenance windows (ignore `scheduled_maintenances`; only `incidents.json`), st
 State per page in `$getWorkflowStaticData('global').pages[pageKey]`: `incidents: { [id]: { status, updatedAt, impact } }`, `failures`, `failureAlerted`, `initialised`.
 - New incident id (not in state):
   - not resolved (`status` not `resolved`/`postmortem`/`completed`): event `new`, always (subject to impact/component filters), including on the first run.
-  - resolved: no event (it is history), unless it resolved within `ignoreIncidentsOlderThanHours` and the page was already initialised, in which case event `resolved_new` is skipped too. Simple rule: already-resolved incidents seen for the first time never alert. They are stored.
+  - resolved: no event. Already-resolved incidents seen for the first time are history: store them, never alert. (`ignoreIncidentsOlderThanHours` therefore only limits how much resolved history is stored; keep the setting but document it as a storage limit, or drop the setting if it has no effect and tell me in NOTES.md.)
 - Known incident whose `updated_at` or `status` or `impact` changed: if new status is `resolved`: event `resolved` (only when `alertOnResolved`); otherwise event `update`. If nothing changed: nothing.
 - Impact filter: an incident passes when its impact rank (none=0, minor=1, major=2, critical=3) is at least `minimumImpact`. A resolution event is sent only if the incident had previously been alerted OR passes the filter now (so you never get "resolved" for something you never heard about; track `notified: true` in state).
 - Component filter as in step 2.
