@@ -1,86 +1,67 @@
 # Vendor status page watcher
 
-Email yourself when a third-party service you depend on reports an incident. The
-workflow polls public Atlassian Statuspage v2 feeds (GitHub, Cloudflare, status feed
-and similar), works out what is new, and sends one tidy email per page per run.
-It stays quiet when nothing is happening.
+An n8n workflow that emails you when a service you depend on reports an incident on its status page. It reads the public Atlassian Statuspage v2 feeds (GitHub, Cloudflare, npm and plenty of others), remembers what it has already told you, and sends one email per page per run when something is new. If nothing has changed, it sends nothing.
 
-## What it does
+This is a demo workflow. I have tested it against captured feeds and a local n8n, not against a long-running production setup.
 
-For each status page it fetches `/api/v2/incidents.json` and compares the result
-with the state saved last time: a new incident, an update, or a resolution. It
-also sends one email when a page fails to load several runs in a row, and one
-when it recovers.
+## What you need
 
-## Requirements
-
-- n8n 2.44.7 (built and tested against this version). Core nodes only.
-- An SMTP account, as a credential named "SMTP account".
-- No API keys: Statuspage incident feeds are public.
+- n8n 2.44.7. That is the version I built and tested on. It uses core nodes only.
+- An SMTP account, saved as a credential called "SMTP account".
+- No API keys. The incident feeds are public.
 
 ## Setup
 
 1. Import `workflow.json`.
-2. Open **Set up your status pages and email** and edit the values there (the
-   only node you need to change).
-3. On **Send incident email**, select your SMTP credential and check the
-   addresses.
-4. Activate the workflow.
+2. Open the node "Set up your status pages and email". It is the only node with values to edit.
+3. In "Send incident email", pick your SMTP credential and check the from and to addresses.
+4. Activate the workflow. The schedule trigger runs every 5 minutes.
 
-Settings: `pages` (one per line, `Label | https://host`; blank and `#` lines
-ignored); `minimumImpact` (`none`, `minor`, `major` or `critical`, skips
-incidents below it); `componentKeywords` (optional, one per line,
-case-insensitive, limits reports to a matching component or title);
-`alertOnResolved` (email on resolution or not); `fromEmail`/`toEmail` (replace
-the placeholders); `failuresBeforeAlert`, `ignoreIncidentsOlderThanHours`,
-`maxIncidentsPerPage` (tuning values with sensible defaults).
+The settings:
 
-## Adding a vendor
+- `pages`: one per line, as `Label | https://host`. Blank lines and lines starting with `#` are skipped.
+- `minimumImpact`: `none`, `minor`, `major` or `critical`. Incidents below it are ignored. The default is `minor`.
+- `componentKeywords`: optional, one per line, not case-sensitive. If you fill it in, only incidents whose title or affected components match are reported.
+- `alertOnResolved`: whether you want an email when an incident is resolved.
+- `fromEmail` and `toEmail`: replace the placeholders. The workflow refuses to run while they are still there.
+- `failuresBeforeAlert` (3), `ignoreIncidentsOlderThanHours` (48) and `maxIncidentsPerPage` (10): tuning values, with the defaults in brackets.
 
-Add a line to `pages`, for example `Discord | https://discordstatus.com`. Any
-host serving Statuspage v2 JSON at `/api/v2/incidents.json` works: paste the
-bare host, page URL or API URL, and the workflow reduces it to the origin.
+To add a vendor, add a line such as `Discord | https://discordstatus.com`. Any site that serves Statuspage v2 JSON at `/api/v2/incidents.json` should work. You can paste the bare host, the page URL or the API URL and it is cut down to the origin.
 
-## How events are decided
+## How it decides what to send
 
-State is held per page: each incident's id, status, impact and update time. A
-new unresolved id is a new event; a changed status, impact or update time is an
-update, or a resolution if now resolved (only for an incident you were told
-about). An older update time is ignored. The first run reports only open
-incidents; resolved ones are stored as history. The subject names the event,
-for example `[Status] GitHub: new incident - <title>`.
+For each page it fetches `/api/v2/incidents.json` and compares the result with what it stored on the previous run. Per incident it keeps the id, status, impact and last update time.
+
+- An unresolved incident it has not seen before is a new incident.
+- A different status, impact or update time on a known incident is an update. If the status is now resolved, it is a resolution, but only for an incident you were emailed about earlier.
+- An update time older than the stored one is ignored.
+- On the first run only open incidents are reported. Resolved ones are stored as history and never sent.
+
+The subject says what happened, for example `[Status] GitHub: new incident - <title>`. If a page fails to load several runs in a row (`failuresBeforeAlert`), you get one "unreachable" email, and one more when it loads again.
 
 ## Limits
 
-- Works only with Atlassian Statuspage v2 JSON pages, tested against GitHub,
-  Cloudflare and status feed.
-- Polling is not real time; maintenance windows are ignored on purpose.
-- State lives in workflow static data, saved only for active workflows run from
-  a trigger. Manual runs do not save it, so a manual test repeats alerts.
+- Atlassian Statuspage v2 JSON only. I have run the logic against captured feeds from GitHub, Cloudflare and npm. Other status systems are not supported.
+- It polls, so it is not real time. You hear within one schedule interval.
+- Scheduled maintenance is ignored on purpose. Only `incidents.json` is read.
+- State is kept in the workflow's static data, which n8n only saves for an active workflow started by its trigger. A manual run does not save anything, so running it by hand sends the same alerts again each time.
 
-## How to test
+## Trying it
 
-Set your addresses and SMTP credential, then run once with the manual trigger
-against a page with an open incident. Manual runs do not persist state, so each
-re-sends; activate the workflow for real de-duplication.
+Set your addresses and SMTP credential, then run it once with the manual trigger against a page that has an open incident. You will get an email every time you do that. Activate the workflow to get proper de-duplication.
 
-## Swapping email for Slack or Teams
+If you would rather get a Slack or Teams message, swap "Send incident email" for that node and map `text` onto the message body. The rest stays as it is.
 
-Replace **Send incident email** with a Slack or Teams node, mapping `text`
-onto the message body. The rest is unchanged.
+## If something looks wrong
 
-## Troubleshooting
+- No email: check the SMTP credential, and that the incident reaches `minimumImpact`.
+- The same email keeps arriving: you are probably running it manually.
+- An "unreachable" email means the page failed `failuresBeforeAlert` checks in a row. A "recovered" one follows when it reads again.
 
-- No email: check the SMTP credential and that an incident passes `minimumImpact`.
-- Repeated emails: you are probably running manually; activate the workflow.
-- An "unreachable" email means the page failed `failuresBeforeAlert` checks in a
-  row; "recovered" follows once it reads again.
+## Tests
 
-## Live import test
+`npm test` rebuilds `workflow.json` from `src/` and runs the unit tests offline against the captured feeds in `fixtures/`. `npm run lint:copy` checks the wording of this file and the sticky notes. `npm run samples` rewrites the files in `samples/`.
 
-Imported unchanged into a local n8n 2.44.7 through the public API, activated
-with the schedule patched to 10 seconds. Two mock status pages (one serving the
-real captured GitHub feed) and a local SMTP sink ran on localhost. All 14
-end-to-end checks passed: baseline, new incident, no repeat, update, resolution,
-a two-check outage, recovery, a refused connection and an HTML 404 page. No real
-mail server was used. See `samples/e2e-run.txt` and `VERIFICATION.md`.
+`npm run e2e` imports the workflow into a local n8n through its API and runs it against two mock status pages and a local SMTP sink, so it needs `N8N_URL` and `N8N_API_KEY`. I ran it once on 27 October 2026 against n8n 2.44.7, with the schedule shortened to 10 seconds. All 14 checks passed: a new incident, an update, a resolution, a two-run outage and its recovery, a refused connection and an HTML 404 page, among others. One mock served a captured GitHub feed. No real mail server or live status page was used. That run was before my last wording edits to the workflow. The output is in `samples/e2e-run.txt` and the emails it sent are in `samples/e2e-emails.txt`.
+
+The fixtures are captured feeds. I trimmed one product label out of a GitHub component name so the repo text stays clear of unrelated product names; nothing else in them was changed.

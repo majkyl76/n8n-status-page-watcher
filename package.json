@@ -1,7 +1,7 @@
 {
   "name": "n8n-status-page-watcher",
   "version": "1.0.0",
-  "description": "n8n template: email me when a vendor status page reports an incident",
+  "description": "n8n workflow that emails me when a vendor status page reports an incident",
   "private": true,
   "type": "module",
   "license": "MIT",
