@@ -5,7 +5,7 @@
 //
 //   N8N_URL      base URL of the local n8n, e.g. http://127.0.0.1:5678
 //   N8N_API_KEY  an n8n public API key
-//   TICK_SECONDS optional, schedule interval used for the test (default 6)
+//   TICK_SECONDS optional, schedule interval used for the test (default 10)
 //
 // The imported copy is patched in three places only: the config values, the trigger
 // interval and the SMTP credential. Every phase waits for the first execution that
@@ -24,7 +24,9 @@ if (!N8N_URL || !N8N_API_KEY) {
   console.log('e2e needs a live n8n. Set N8N_URL and N8N_API_KEY to run it. It is not part of `npm test`.');
   process.exit(0);
 }
-const TICK = Number(process.env.TICK_SECONDS || 6);
+// 10 s, not 6: a run where a page returns HTML 500 retries and takes about 6 s, so a
+// 6 s tick made runs of the same workflow overlap and mail landed on the wrong phase.
+const TICK = Number(process.env.TICK_SECONDS || 10);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------- mock Statuspage servers ----------
@@ -56,7 +58,7 @@ const sink = net.createServer((socket) => {
       const line = buffer.slice(0, i);
       buffer = buffer.slice(i + 2);
       if (mode === 'data') {
-        if (line === '.') { mails.push(data); data = ''; mode = 'cmd'; socket.write('250 queued\r\n'); }
+        if (line === '.') { mails.push({ at: Date.now(), raw: data }); data = ''; mode = 'cmd'; socket.write('250 queued\r\n'); }
         else data += (line.startsWith('..') ? line.slice(1) : line) + '\n';
         continue;
       }
@@ -121,17 +123,33 @@ async function waitForRun(workflowId, afterMs, timeoutMs = 90000) {
   }
   throw new Error('timed out waiting for an execution');
 }
+// Wait until no execution of this workflow is still running (used after deactivating a
+// workflow, so a late run cannot add mail to the next workflow's phase; REVIEW-2 item 3).
+async function waitIdle(workflowId, timeoutMs = 60000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    const { data } = await api(`/executions?workflowId=${workflowId}&status=running&limit=10`);
+    if (!data.length) return;
+    await sleep(200);
+  }
+  throw new Error('timed out waiting for running executions to finish');
+}
 async function runPhase(workflowId, name) {
   // The mock was switched just before this call, so take the start time now. Sleeping first
   // lost the mail of an execution that started during the sleep (seen once in a live run).
-  mails.length = 0;
+  // Mail is attributed to the awaited execution by receive time: only mail that arrived
+  // between its start and 500 ms after its stop counts. A run that started on the old mock
+  // state and finished late can no longer leak mail into this phase (REVIEW-2 item 2).
   const T = Date.now();
   const exec = await waitForRun(workflowId, T);
   await sleep(500);
-  const parsed = mails.map(parseMail);
-  console.log(`-- phase ${name}: execution ${exec.id} ${exec.status}, emails=${parsed.length}${parsed.map((m) => '\n     subject: ' + m.subject).join('')}`);
+  const from = new Date(exec.startedAt).getTime();
+  const to = new Date(exec.stoppedAt).getTime() + 500;
+  const mine = mails.filter((m) => m.at >= from && m.at <= to).map((m) => m.raw);
+  const parsed = mine.map(parseMail);
+  console.log(`-- phase ${name}: execution ${exec.id} ${exec.status} (${to - 500 - from} ms), emails=${parsed.length}${parsed.map((m) => '\n     subject: ' + m.subject).join('')}`);
   if (exec.status !== 'success') console.log('   error:', JSON.stringify(exec.data?.resultData?.error ?? {}).slice(0, 2500), "lastNode=", exec.data?.resultData?.lastNodeExecuted);
-  return { exec, mails: parsed, raw: [...mails] };
+  return { exec, mails: parsed, raw: mine };
 }
 
 const results = [];
@@ -181,7 +199,7 @@ async function main() {
     console.log(`activated, schedule every ${TICK}s; mock A :${portA}, mock B (real GitHub fixture) :${portB}, SMTP sink :${smtpPort}`);
 
     let r = await runPhase(w.id, 'baseline');
-    check('baseline: execution succeeded and both pages were fetched', () => { assert.equal(r.exec.status, 'success'); assert.ok(true); });
+    check('baseline: execution succeeded and both pages were fetched', () => { assert.equal(r.exec.status, 'success'); assert.ok(hits.a > 0 && hits.b > 0, 'pages fetched: ' + JSON.stringify(hits)); });
     check('baseline: no emails (only resolved history on the real fixture, nothing on mock A)', () => assert.equal(r.mails.length, 0));
 
     mockA.body.incidents = [incident('investigating', 'major', 60000, 'Errors <script>alert(1)</script> & "quotes"')];
@@ -249,11 +267,16 @@ async function main() {
 
     // ---- a second copy pointed at a closed port: real network-error items from the HTTP node ----
     await api(`/workflows/${w.id}/deactivate`, { method: 'POST', body: '{}' });
+    await waitIdle(w.id); // a late run of w must not add mail to the next phase (REVIEW-2 item 3)
+    // A port that is known to be closed: listen on an ephemeral port, then close it (REVIEW-2 item 4).
+    const probe = net.createServer();
+    const deadPort = await listen(probe);
+    await new Promise((r) => probe.close(r));
     const dead = JSON.parse(JSON.stringify(wf));
     for (const n of dead.nodes) {
       if (n.type === 'n8n-nodes-base.set') {
         const set = (k, v) => { n.parameters.assignments.assignments.find((a) => a.name === k).value = v; };
-        set('pages', `Dead host | http://127.0.0.1:9\nHTML 404 | http://127.0.0.1:${portC}`);
+        set('pages', `Dead host | http://127.0.0.1:${deadPort}\nHTML 404 | http://127.0.0.1:${portC}`);
         set('failuresBeforeAlert', 1);
       }
     }
