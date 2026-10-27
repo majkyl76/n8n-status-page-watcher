@@ -1,4 +1,4 @@
-Subject: [Status] GitHub: 1 new event - Incident with Actions, Issues, API Requests and Pull Requests
+Subject: [Status] GitHub: resolved - Incident with Actions, Issues, API Requests and Pull Requests
 
 Status page: GitHub (https://www.githubstatus.com)
 Checked at 2026-10-27 12:00 UTC

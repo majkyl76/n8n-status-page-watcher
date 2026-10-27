@@ -91,8 +91,8 @@ and map the `text` field onto the message body. The rest of the workflow is unch
 ## Live import test
 
 Imported unchanged into a local n8n 2.44.7 through the public API, then activated with
-the schedule patched to 6 seconds. Two mock status pages (one of them serving the real
+the schedule patched to 10 seconds. Two mock status pages (one of them serving the real
 captured GitHub feed) and a local SMTP sink ran on localhost. All 14 end-to-end checks
 passed: baseline, new incident, no repeat, update, resolution, a two-check outage with
-one "unreachable" email, recovery, and a refused connection. No real mail server was used. See
+one "unreachable" email, recovery, a refused connection and an HTML 404 page. No real mail server was used. See
 `samples/e2e-run.txt` and `VERIFICATION.md`.
