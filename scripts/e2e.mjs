@@ -1,4 +1,4 @@
-// npm run e2e  (live end-to-end, AC14)
+// npm run e2e  (live end-to-end run against a local n8n)
 //
 // Drives a real local n8n through its public REST API. Two mock Statuspage servers
 // and a tiny SMTP sink run on this machine. Nothing leaves localhost.
@@ -124,7 +124,7 @@ async function waitForRun(workflowId, afterMs, timeoutMs = 90000) {
   throw new Error('timed out waiting for an execution');
 }
 // Wait until no execution of this workflow is still running (used after deactivating a
-// workflow, so a late run cannot add mail to the next workflow's phase; REVIEW-2 item 3).
+// workflow, so a late run cannot add mail to the next workflow's phase).
 async function waitIdle(workflowId, timeoutMs = 60000) {
   const t0 = Date.now();
   while (Date.now() - t0 < timeoutMs) {
@@ -139,7 +139,7 @@ async function runPhase(workflowId, name) {
   // lost the mail of an execution that started during the sleep (seen once in a live run).
   // Mail is attributed to the awaited execution by receive time: only mail that arrived
   // between its start and 500 ms after its stop counts. A run that started on the old mock
-  // state and finished late can no longer leak mail into this phase (REVIEW-2 item 2).
+  // state and finished late can no longer leak mail into this phase.
   const T = Date.now();
   const exec = await waitForRun(workflowId, T);
   await sleep(500);
@@ -267,8 +267,8 @@ async function main() {
 
     // ---- a second copy pointed at a closed port: real network-error items from the HTTP node ----
     await api(`/workflows/${w.id}/deactivate`, { method: 'POST', body: '{}' });
-    await waitIdle(w.id); // a late run of w must not add mail to the next phase (REVIEW-2 item 3)
-    // A port that is known to be closed: listen on an ephemeral port, then close it (REVIEW-2 item 4).
+    await waitIdle(w.id); // a late run of w must not add mail to the next phase
+    // A port that is known to be closed: listen on an ephemeral port, then close it.
     const probe = net.createServer();
     const deadPort = await listen(probe);
     await new Promise((r) => probe.close(r));

@@ -17,7 +17,7 @@ const workflow = loadWorkflow();
 
 // 1. The settings node turning the default pages box into page items.
 const config = {
-  pages: 'GitHub | https://www.githubstatus.com\nCloudflare | https://www.cloudflarestatus.com\nstatus feed | https://status.status feed.com',
+  pages: 'GitHub | https://www.githubstatus.com\nCloudflare | https://www.cloudflarestatus.com\nnpm | https://status.npmjs.org',
   minimumImpact: 'minor',
   componentKeywords: '',
   alertOnResolved: true,

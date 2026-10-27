@@ -1,4 +1,4 @@
-// AC1, AC2, AC3, AC5: structure, sticky note guidelines, no secrets, node naming.
+// Structure, sticky note guidelines, no secrets, node naming.
 // These tests parse workflow.json only.
 
 import { test } from 'node:test';
@@ -30,7 +30,7 @@ function wordCount(text) {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-test('AC1: valid JSON with name, nodes, connections, settings', () => {
+test('valid JSON with name, nodes, connections, settings', () => {
   assert.equal(typeof workflow.name, 'string');
   assert.ok(workflow.name.length > 0);
   assert.ok(Array.isArray(workflow.nodes));
@@ -38,17 +38,17 @@ test('AC1: valid JSON with name, nodes, connections, settings', () => {
   assert.equal(typeof workflow.settings, 'object');
 });
 
-test('AC1: workflow title is plain, at most 80 chars, no emoji', () => {
+test('workflow title is plain, at most 80 chars, no emoji', () => {
   assert.ok(workflow.name.length <= 80);
   // Emoji live well above the basic multilingual plane plus common symbol ranges.
   assert.ok(!/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/u.test(workflow.name));
 });
 
-test('AC1: active is false', () => {
+test('active is false', () => {
   assert.equal(workflow.active, false);
 });
 
-test('AC1: no instance-specific top-level fields', () => {
+test('no instance-specific top-level fields', () => {
   assert.ok(!('id' in workflow), 'workflow should have no top-level id');
   assert.ok(!('versionId' in workflow), 'no versionId');
   assert.ok(!('pinData' in workflow), 'no pinData');
@@ -57,7 +57,7 @@ test('AC1: no instance-specific top-level fields', () => {
   }
 });
 
-test('AC1: unique node names and ids', () => {
+test('unique node names and ids', () => {
   const names = nodes.map((n) => n.name);
   const ids = nodes.map((n) => n.id);
   assert.equal(new Set(names).size, names.length, 'node names must be unique');
@@ -65,11 +65,11 @@ test('AC1: unique node names and ids', () => {
   for (const id of ids) assert.ok(id && typeof id === 'string', 'every node has a string id');
 });
 
-test('AC1: no disabled nodes', () => {
+test('no disabled nodes', () => {
   for (const n of nodes) assert.ok(!n.disabled, 'node must not be disabled: ' + n.name);
 });
 
-test('AC1: every connection endpoint exists', () => {
+test('every connection endpoint exists', () => {
   const names = new Set(nodes.map((n) => n.name));
   for (const [source, conn] of Object.entries(workflow.connections)) {
     assert.ok(names.has(source), 'connection source exists: ' + source);
@@ -83,7 +83,7 @@ test('AC1: every connection endpoint exists', () => {
   }
 });
 
-test('AC1: every non-sticky non-trigger node is reachable from a trigger', () => {
+test('every non-sticky non-trigger node is reachable from a trigger', () => {
   const triggers = nodes.filter((n) => triggerTypes.includes(n.type)).map((n) => n.name);
   const reached = new Set(triggers);
   let changed = true;
@@ -110,7 +110,7 @@ test('AC1: every non-sticky non-trigger node is reachable from a trigger', () =>
   }
 });
 
-test('AC1: no orphan functional nodes (each has a connection in or out)', () => {
+test('no orphan functional nodes (each has a connection in or out)', () => {
   const hasOut = new Set(Object.keys(workflow.connections));
   const hasIn = new Set();
   for (const conn of Object.values(workflow.connections)) {
@@ -125,10 +125,11 @@ test('AC1: no orphan functional nodes (each has a connection in or out)', () => 
   }
 });
 
-test('AC1: every node type and typeVersion exists in installed n8n-nodes-base', () => {
-  const base = '/workspace/n8n-local/node_modules/n8n-nodes-base/dist/nodes';
-  if (!existsSync(base)) {
-    console.log('AC1: installed n8n-nodes-base not found, skipping version existence check');
+test('every node type and typeVersion exists in installed n8n-nodes-base', () => {
+  // Point N8N_NODES_BASE_DIR at an installed n8n-nodes-base package to run this check.
+  const base = join(process.env.N8N_NODES_BASE_DIR || '', 'dist/nodes');
+  if (!process.env.N8N_NODES_BASE_DIR || !existsSync(base)) {
+    console.log('n8n-nodes-base not found, skipping version existence check');
     return;
   }
   const fileFor = {
@@ -161,7 +162,7 @@ test('AC1: every node type and typeVersion exists in installed n8n-nodes-base', 
   }
 });
 
-test('AC2: exactly one yellow main sticky, top-left', () => {
+test('exactly one yellow main sticky, top-left', () => {
   const yellow = stickies.filter((s) => s.parameters.color === 1);
   assert.equal(yellow.length, 1, 'exactly one yellow overview sticky');
   const main = yellow[0];
@@ -171,7 +172,7 @@ test('AC2: exactly one yellow main sticky, top-left', () => {
   assert.equal(main.position[1], minY, 'main sticky y is the minimum of all nodes');
 });
 
-test('AC2: main sticky is 100 to 300 words with required headings', () => {
+test('main sticky is 100 to 300 words with required headings', () => {
   const main = stickies.find((s) => s.parameters.color === 1);
   const words = wordCount(main.parameters.content);
   assert.ok(words >= 100 && words <= 300, 'main sticky word count ' + words + ' in [100,300]');
@@ -179,7 +180,7 @@ test('AC2: main sticky is 100 to 300 words with required headings', () => {
   assert.ok(main.parameters.content.includes('### Setup'), 'has Setup heading');
 });
 
-test('AC2: Setup section names credential, config, test and static-data limit', () => {
+test('Setup section names credential, config, test and static-data limit', () => {
   const main = stickies.find((s) => s.parameters.color === 1);
   const c = main.parameters.content;
   assert.ok(c.includes('SMTP account'), 'names the SMTP credential');
@@ -188,7 +189,7 @@ test('AC2: Setup section names credential, config, test and static-data limit', 
   assert.ok(/static data/i.test(c) && /active/i.test(c), 'states the static-data limitation');
 });
 
-test('AC2: white section stickies each cover >=2 nodes and not the main sticky', () => {
+test('white section stickies each cover >=2 nodes and not the main sticky', () => {
   const main = stickies.find((s) => s.parameters.color === 1);
   const white = stickies.filter((s) => s.parameters.color === 7);
   assert.ok(white.length >= 1, 'has white section stickies');
@@ -201,7 +202,7 @@ test('AC2: white section stickies each cover >=2 nodes and not the main sticky',
   }
 });
 
-test('AC2: white section stickies cover every functional node', () => {
+test('white section stickies cover every functional node', () => {
   const white = stickies.filter((s) => s.parameters.color === 7);
   for (const n of functional) {
     const covered = white.some((s) => covers(s, n));
@@ -209,7 +210,7 @@ test('AC2: white section stickies cover every functional node', () => {
   }
 });
 
-test('AC2: at most one red sticky, covering exactly one node (the Send Email node)', () => {
+test('at most one red sticky, covering exactly one node (the Send Email node)', () => {
   const red = stickies.filter((s) => s.parameters.color === 3);
   assert.ok(red.length <= 1, 'at most one red sticky');
   for (const s of red) {
@@ -219,13 +220,13 @@ test('AC2: at most one red sticky, covering exactly one node (the Send Email nod
   }
 });
 
-test('AC2: no stickies other than yellow(1), white(7), red(3)', () => {
+test('no stickies other than yellow(1), white(7), red(3)', () => {
   for (const s of stickies) {
     assert.ok([1, 3, 7].includes(s.parameters.color), 'sticky colour is 1, 3 or 7: ' + s.name);
   }
 });
 
-test('AC3: no secrets anywhere in the workflow', () => {
+test('no secrets anywhere in the workflow', () => {
   const raw = JSON.stringify(workflow);
   const forbidden = [
     /Bearer\s/i,
@@ -242,14 +243,14 @@ test('AC3: no secrets anywhere in the workflow', () => {
   }
 });
 
-test('AC3: Send Email references smtp credential by name, no id', () => {
+test('Send Email references smtp credential by name, no id', () => {
   const send = nodes.find((n) => n.type === 'n8n-nodes-base.emailSend');
   assert.ok(send.credentials && send.credentials.smtp, 'has smtp credential reference');
   assert.equal(send.credentials.smtp.name, 'SMTP account');
   assert.ok(!('id' in send.credentials.smtp), 'no credential id');
 });
 
-test('AC3: email placeholders are obvious placeholders in the Set node', () => {
+test('email placeholders are obvious placeholders in the Set node', () => {
   const set = nodes.find((n) => n.type === 'n8n-nodes-base.set');
   const assignments = set.parameters.assignments.assignments;
   const from = assignments.find((a) => a.name === 'fromEmail').value;
@@ -258,12 +259,12 @@ test('AC3: email placeholders are obvious placeholders in the Set node', () => {
   assert.equal(to, 'YOUR_RECIPIENT_ADDRESS');
 });
 
-test('AC3: the HTTP Request node needs no credential', () => {
+test('the HTTP Request node needs no credential', () => {
   const http = nodes.find((n) => n.type === 'n8n-nodes-base.httpRequest');
   assert.ok(!http.credentials, 'HTTP node has no credentials');
 });
 
-test('AC5: no default n8n node names', () => {
+test('no default n8n node names', () => {
   const defaults = [
     'HTTP Request', 'Set', 'Edit Fields', 'Code', 'If', 'Send Email',
     'Schedule Trigger', 'Manual Trigger',
@@ -275,7 +276,7 @@ test('AC5: no default n8n node names', () => {
   }
 });
 
-test('AC5: functional node names are at most 50 characters', () => {
+test('functional node names are at most 50 characters', () => {
   for (const n of functional) {
     assert.ok(n.name.length <= 50, n.name + ' is <= 50 chars');
   }

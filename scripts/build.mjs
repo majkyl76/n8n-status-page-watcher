@@ -32,7 +32,7 @@ const N = {
 const DEFAULT_PAGES = [
   'GitHub | https://www.githubstatus.com',
   'Cloudflare | https://www.cloudflarestatus.com',
-  'status feed | https://status.status feed.com',
+  'npm | https://status.npmjs.org',
   '# Add one page per line as "Label | https://host". Lines starting with # are ignored.',
 ].join('\n');
 
@@ -41,22 +41,22 @@ function assignment(id, name, value, type) {
 }
 
 // Sticky colours in n8n: 1 = yellow (default), 3 = red, 7 = white/neutral.
-// Evidence: docs/sticky-colours.md.
+// I read these off the editor's stylesheet for n8n 2.44.7.
 const MAIN_STICKY = [
   '## Vendor status page watcher',
   '',
-  'Polls the public Statuspage v2 JSON feed of each vendor you depend on and emails you once per incident event: a new incident, an update, or a resolution. It dedupes by incident and update using workflow static data, so you hear once and then it stays quiet.',
+  'Checks the public Statuspage v2 JSON feed of each vendor you list and emails you when there is a new incident, an update or a resolution. It remembers what it has already sent in the workflow static data, so you are told once per event.',
   '',
   '### How it works',
-  'The schedule trigger runs every 5 minutes. The settings node holds your pages and filters. The first code node validates the settings and works out each API URL. The HTTP node fetches /api/v2/incidents.json for each page. The second code node compares each response with the stored state, builds the events and writes one email per page that has news.',
+  'The schedule trigger runs every 5 minutes and the settings node holds your pages and filters. The first code node checks the settings and works out each API URL. The HTTP node fetches /api/v2/incidents.json for each page. The second code node compares each response with the stored state and writes one email per page that has news.',
   '',
   '### Setup',
   '1. Open "Set up your status pages and email" and edit: pages (one per line, "Label | https://host"), minimumImpact, componentKeywords, alertOnResolved, failuresBeforeAlert, and the from/to addresses (replace YOUR_SENDER_ADDRESS and YOUR_RECIPIENT_ADDRESS).',
   '2. On "Send incident email", pick your SMTP credential named "SMTP account".',
-  '3. To test, run once with the manual trigger. Note: static data only saves for active workflows started by the trigger, so manual runs repeat alerts and do not persist state. Activate the workflow for real dedupe.',
+  '3. To test, run once with the manual trigger. Static data is only saved for an active workflow started by its trigger, so manual runs repeat the alerts. Activate the workflow to stop that.',
   '',
   '### Customization',
-  'Swap the final send node for a Slack or Microsoft Teams node to change delivery. Works only with Atlassian Statuspage v2 JSON pages. Maintenance windows are ignored.',
+  'To get Slack or Microsoft Teams messages, replace the send node. It only works with Atlassian Statuspage v2 JSON pages, and maintenance windows are ignored.',
 ].join('\n');
 
 function node(def) {
@@ -74,7 +74,7 @@ export function buildWorkflow() {
       id: 'sticky-settings', name: 'Section: triggers and settings', type: 'n8n-nodes-base.stickyNote', typeVersion: 1,
       position: [120, 270],
       parameters: {
-        content: '### Triggers and settings\nRun on a schedule or by hand. All editing happens in the settings node: pages, filters and the from/to email addresses.',
+        content: '### Triggers and settings\nRuns on a schedule or by hand. The settings node is the only one you edit: pages, filters and the from and to addresses.',
         height: 260, width: 360, color: 7,
       },
     }),
@@ -82,7 +82,7 @@ export function buildWorkflow() {
       id: 'sticky-detect', name: 'Section: fetch and detect', type: 'n8n-nodes-base.stickyNote', typeVersion: 1,
       position: [600, 270],
       parameters: {
-        content: '### Fetch and detect\nValidate the settings, fetch each incidents.json, then compare with stored state to find new, updated and resolved incidents.',
+        content: '### Fetch and detect\nCheck the settings, fetch each incidents.json, then compare it with the stored state to find new, updated and resolved incidents.',
         height: 160, width: 720, color: 7,
       },
     }),
@@ -90,7 +90,7 @@ export function buildWorkflow() {
       id: 'sticky-send', name: 'Section: send the email', type: 'n8n-nodes-base.stickyNote', typeVersion: 1,
       position: [1340, 270],
       parameters: {
-        content: '### Send the email\nIf there is anything to report, send one plain text and HTML email per page through your SMTP credential.',
+        content: '### Send the email\nIf there is something to report, send one email per page (plain text and HTML) through your SMTP credential.',
         height: 160, width: 460, color: 7,
       },
     }),
@@ -98,7 +98,7 @@ export function buildWorkflow() {
       id: 'sticky-warning', name: 'Warning: set credentials first', type: 'n8n-nodes-base.stickyNote', typeVersion: 1,
       position: [1560, 300],
       parameters: {
-        content: '### Set this up first\nAdd your SMTP credential named "SMTP account" and real from/to addresses before you activate. Without them the send step fails.',
+        content: '### Set this up first\nAdd an SMTP credential called "SMTP account" and real from and to addresses before you activate. Without them the send step fails.',
         height: 120, width: 280, color: 3,
       },
     }),

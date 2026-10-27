@@ -30,9 +30,9 @@
     }
   },
   {
-    "pageKey": "https://status.status feed.com",
-    "label": "status feed",
-    "apiUrl": "https://status.status feed.com/api/v2/incidents.json",
+    "pageKey": "https://status.npmjs.org",
+    "label": "npm",
+    "apiUrl": "https://status.npmjs.org/api/v2/incidents.json",
     "settings": {
       "minimumImpact": "minor",
       "componentKeywords": [],

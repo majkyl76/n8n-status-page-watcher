@@ -1,4 +1,4 @@
-// AC7: minimum impact ranking and component keyword filtering.
+// Minimum impact ranking and component keyword filtering.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,7 +22,7 @@ function emitted(out) {
   return out.length > 0;
 }
 
-test('AC7: minimumImpact ranks none<minor<major<critical', () => {
+test('minimumImpact ranks none<minor<major<critical', () => {
   const ranks = ['none', 'minor', 'major', 'critical'];
   for (let min = 0; min < ranks.length; min++) {
     for (let imp = 0; imp < ranks.length; imp++) {
@@ -33,7 +33,7 @@ test('AC7: minimumImpact ranks none<minor<major<critical', () => {
   }
 });
 
-test('AC7: unknown or missing impact is treated as none', () => {
+test('unknown or missing impact is treated as none', () => {
   const body = { page: {}, incidents: [incident({ id: 'i', status: 'investigating', impact: 'weird' })] };
   // none rank with a minor minimum => filtered out.
   assert.equal(emitted(detect(body, defaultSettings({ minimumImpact: 'minor' }), { pages: {} })), false);
@@ -44,13 +44,13 @@ test('AC7: unknown or missing impact is treated as none', () => {
   assert.equal(emitted(detect(noImpact, defaultSettings({ minimumImpact: 'minor' }), { pages: {} })), false);
 });
 
-test('AC7: component keyword matches incident components', () => {
+test('component keyword matches incident components', () => {
   const body = { page: {}, incidents: [incident({ id: 'i', status: 'investigating', impact: 'minor', components: [{ name: 'API Requests' }] })] };
   assert.equal(emitted(detect(body, defaultSettings({ componentKeywords: ['api'] }), { pages: {} })), true);
   assert.equal(emitted(detect(body, defaultSettings({ componentKeywords: ['database'] }), { pages: {} })), false);
 });
 
-test('AC7: component keyword matches affected_components in updates', () => {
+test('component keyword matches affected_components in updates', () => {
   const body = {
     page: {},
     incidents: [incident({
@@ -61,20 +61,24 @@ test('AC7: component keyword matches affected_components in updates', () => {
   assert.equal(emitted(detect(body, defaultSettings({ componentKeywords: ['dashboard'] }), { pages: {} })), true);
 });
 
-test('AC7: component keyword also matches the incident name', () => {
+test('component keyword also matches the incident name', () => {
   const body = { page: {}, incidents: [incident({ id: 'i', name: 'Webhooks degraded', status: 'investigating', impact: 'minor', components: [] })] };
   assert.equal(emitted(detect(body, defaultSettings({ componentKeywords: ['webhooks'] }), { pages: {} })), true);
 });
 
-test('AC7: keyword matching is case-insensitive', () => {
+test('keyword matching is case-insensitive', () => {
   const body = { page: {}, incidents: [incident({ id: 'i', status: 'investigating', impact: 'minor', components: [{ name: 'API Requests' }] })] };
   assert.equal(emitted(detect(body, defaultSettings({ componentKeywords: ['API'] }), { pages: {} })), true);
 });
 
-test('AC7: status feed payload with no components does not crash', () => {
-  const body = loadFixture('status feed.incidents.json');
-  // Force one incident open so the filter path with a keyword runs over a component-less payload.
-  body.incidents = body.incidents.map((i, idx) => (idx === 0 ? Object.assign({}, i, { status: 'investigating' }) : i));
+test('a payload with no components does not crash', () => {
+  const body = loadFixture('npm.incidents.json');
+  // Strip the components and force one incident open, so the keyword filter runs over a component-less payload.
+  body.incidents = body.incidents.map((i, idx) => {
+    const copy = Object.assign({}, i);
+    delete copy.components;
+    return idx === 0 ? Object.assign(copy, { status: 'investigating' }) : copy;
+  });
   const out = detect(body, defaultSettings({ componentKeywords: ['api'] }), { pages: {} });
   // No throw is the real assertion; result shape is a valid array.
   assert.ok(Array.isArray(out));

@@ -1,4 +1,4 @@
-// AC13: one seeded randomised property test and one golden-output test.
+// One seeded randomised property test and one golden-output test.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,7 +24,7 @@ function mulberry32(a) {
   };
 }
 
-// AC16, from the SPEC prose: compares a candidate "updated_at" against the
+// Compares a candidate "updated_at" against the
 // stored one. A strictly later timestamp is a change. An older, missing or
 // unparsable one is not a change "on its own", and must never overwrite a
 // known-good (parsable) stored timestamp. When the stored value itself is not
@@ -65,13 +65,13 @@ function referenceRun(state, incidents, settings) {
         if (passes) events.push('new');
       }
     } else {
-      // AC16: a strictly later updated_at counts; AC15: resolved only after a real alert.
+      // a strictly later updated_at counts; resolved only after a real alert.
       const time = compareTimestamps(prev.updatedAt, updatedAt);
       const changed = prev.status !== status || prev.impact !== impact || time.isLater;
       let notified = prev.notified === true;
       if (changed) {
         if (resolved) {
-          // AC15: only alert once per resolution; a stored status that was
+          // only alert once per resolution; a stored status that was
           // already resolved (resolved/postmortem/completed) must not re-alert.
           const prevResolved = RESOLVED.includes(prev.status.toLowerCase());
           if (settings.alertOnResolved && prev.notified === true && !prevResolved) events.push('resolved');
@@ -98,11 +98,11 @@ function nodeEventTypes(out) {
   return types.sort();
 }
 
-test('AC13: random poll sequences match the reference model', () => {
+test('random poll sequences match the reference model', () => {
   const rand = mulberry32(987654321);
   const pick = (arr) => arr[Math.floor(rand() * arr.length)];
   // Includes postmortem/completed so a resolved incident moving between resolved
-  // statuses (F-A) is exercised, not just open -> resolved.
+  // statuses is exercised, not just open -> resolved.
   const statuses = ['investigating', 'identified', 'monitoring', 'resolved', 'postmortem', 'completed'];
   const impacts = ['none', 'minor', 'major', 'critical'];
   const ids = ['a', 'b', 'c'];
@@ -117,7 +117,7 @@ test('AC13: random poll sequences match the reference model', () => {
       for (const id of ids) {
         if (rand() < 0.3) continue; // sometimes the incident is absent this run
         const revision = Math.floor(rand() * 6); // controls whether updated_at changes, including bumps after resolution
-        // AC16 (review F2): occasionally the vendor omits updated_at, or sends
+        // occasionally the vendor omits updated_at, or sends
         // something that does not parse as a date. Both are fixed values (not
         // keyed off "revision"), so repeats of the same kind compare equal.
         const timestampRoll = rand();
@@ -141,7 +141,7 @@ test('AC13: random poll sequences match the reference model', () => {
   }
 });
 
-test('AC13: golden sequence produces the expected events JSON', () => {
+test('golden sequence produces the expected events JSON', () => {
   const goldenPath = join(ROOT, 'tests', 'golden', 'expected-events.json');
   assert.ok(existsSync(goldenPath), 'golden file exists');
   const expected = JSON.parse(readFileSync(goldenPath, 'utf8'));

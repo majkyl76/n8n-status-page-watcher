@@ -261,7 +261,7 @@
      "affected_components": [
       {
        "code": "cnnb39dkkk82",
-       "name": "Copilot AI Model Providers",
+       "name": "Copilot Model Providers",
        "old_status": "operational",
        "new_status": "operational"
       }
@@ -273,7 +273,7 @@
     {
      "id": "bwhs75z22n79",
      "status": "monitoring",
-     "body": "The degradation affecting Copilot AI Model Providers has been mitigated. We are monitoring to ensure stability.",
+     "body": "The degradation affecting Copilot Model Providers has been mitigated. We are monitoring to ensure stability.",
      "incident_id": "khv5nj9qy2kk",
      "created_at": "2026-10-24T00:23:17.249Z",
      "updated_at": "2026-10-24T00:23:17.249Z",
@@ -281,7 +281,7 @@
      "affected_components": [
       {
        "code": "cnnb39dkkk82",
-       "name": "Copilot AI Model Providers",
+       "name": "Copilot Model Providers",
        "old_status": "degraded_performance",
        "new_status": "operational"
       }
@@ -301,7 +301,7 @@
      "affected_components": [
       {
        "code": "cnnb39dkkk82",
-       "name": "Copilot AI Model Providers",
+       "name": "Copilot Model Providers",
        "old_status": "degraded_performance",
        "new_status": "degraded_performance"
       }
@@ -313,7 +313,7 @@
     {
      "id": "qvnkynchlt11",
      "status": "investigating",
-     "body": "We are investigating reports of degraded performance for Copilot AI Model Providers",
+     "body": "We are investigating reports of degraded performance for Copilot Model Providers",
      "incident_id": "khv5nj9qy2kk",
      "created_at": "2026-10-23T23:41:54.338Z",
      "updated_at": "2026-10-23T23:41:54.338Z",
@@ -321,7 +321,7 @@
      "affected_components": [
       {
        "code": "cnnb39dkkk82",
-       "name": "Copilot AI Model Providers",
+       "name": "Copilot Model Providers",
        "old_status": "operational",
        "new_status": "degraded_performance"
       }
@@ -334,7 +334,7 @@
    "components": [
     {
      "id": "cnnb39dkkk82",
-     "name": "Copilot AI Model Providers",
+     "name": "Copilot Model Providers",
      "status": "operational",
      "created_at": "2026-04-17T12:33:08.827Z",
      "updated_at": "2026-10-24T00:23:17.209Z",

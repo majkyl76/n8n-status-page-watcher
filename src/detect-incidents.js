@@ -14,7 +14,7 @@ if (!staticData.pages || typeof staticData.pages !== 'object') {
 
 const RESOLVED_STATUSES = ['resolved', 'postmortem', 'completed'];
 const IMPACT_RANK = { none: 0, minor: 1, major: 2, critical: 3 };
-const MAX_BODY_CHARS = 19999; // AC10: strictly under 20000
+const MAX_BODY_CHARS = 19999; // strictly under 20000
 
 // A null-prototype map, so odd keys like "__proto__" or "constructor" become
 // plain own properties and never touch Object.prototype.
@@ -272,7 +272,7 @@ function renderHtml(label, origin, shown, hiddenCount, nowStr) {
 }
 
 // Last resort when even the single most severe event does not fit under the
-// cap on its own (AC10/AC17, review 2 F1): build the header and footer first
+// cap on its own: build the header and footer first
 // and reserve their length, then hard-cut only that one event's own rendered
 // fragment to fit what is left, and reassemble. That way the footer (and the
 // count it reports) always survives, instead of a blind cut of the whole
@@ -296,9 +296,9 @@ function hardCutSingleEventBodies(label, origin, event, hiddenCount, nowStr) {
 // Render both bodies, dropping events from the end of the (severity-sorted)
 // list and recomputing the "+N more" count until both fit under the cap. This
 // keeps the footer that discloses the cap instead of silently losing it to a
-// blind cut partway through the list (review F1). Only if the single most
+// blind cut partway through the list. Only if the single most
 // severe event remaining is still too large on its own do we fall back to a
-// hard cut of that one event's rendered text (review 2 F1).
+// hard cut of that one event's rendered text.
 function renderBodies(label, origin, sorted, cap, nowStr) {
   const maxShown = Math.min(cap, sorted.length);
   for (let shownCount = maxShown; shownCount >= 1; shownCount--) {
@@ -383,7 +383,7 @@ for (let i = 0; i < pageItems.length; i++) {
       const stored = Object.hasOwn(ps.incidents, id) ? ps.incidents[id] : undefined;
       // A null, array or otherwise non-plain-object stored record (an old/different
       // schema, or hand-edited state) is treated like a first-seen incident instead
-      // of crashing the whole run (review 2 F2, review 3 note).
+      // of crashing the whole run.
       const prev = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : undefined;
 
       if (prev === undefined) {
@@ -426,7 +426,7 @@ for (let i = 0; i < pageItems.length; i++) {
           if (resolved) {
             // Only alert a resolution for something we told the user about,
             // and only once: a stored status that was already resolved
-            // (resolved/postmortem/completed) must not re-alert (AC15).
+            // (resolved/postmortem/completed) must not re-alert.
             if (settings.alertOnResolved && prev.notified === true && !isResolved(prev.status)) {
               events.push(incidentEvent('resolved', incident, origin));
             }

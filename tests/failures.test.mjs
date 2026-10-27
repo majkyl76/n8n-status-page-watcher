@@ -1,4 +1,4 @@
-// AC8: failure counting, one unreachable alert at the threshold, one recovered.
+// Failure counting, one unreachable alert at the threshold, one recovered.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -30,7 +30,7 @@ const failureKinds = {
 };
 
 for (const [label, response] of Object.entries(failureKinds)) {
-  test('AC8: ' + label + ' counts as a failure and alerts once at the threshold', () => {
+  test('' + label + ' counts as a failure and alerts once at the threshold', () => {
     const state = { pages: {} };
     const settings = defaultSettings({ failuresBeforeAlert: 3 });
     // Two failures: no alert yet.
@@ -47,7 +47,7 @@ for (const [label, response] of Object.entries(failureKinds)) {
   });
 }
 
-test('AC8: a success after an alert emits exactly one recovered event', () => {
+test('a success after an alert emits exactly one recovered event', () => {
   const state = { pages: {} };
   const settings = defaultSettings({ failuresBeforeAlert: 1 });
   const out1 = detect(httpStatusResponse(500, 'boom'), settings, state);
@@ -60,7 +60,7 @@ test('AC8: a success after an alert emits exactly one recovered event', () => {
   assert.equal(out3.length, 0, 'no repeat recovered');
 });
 
-test('AC8: incident state is kept through failures', () => {
+test('incident state is kept through failures', () => {
   const state = { pages: {} };
   const settings = defaultSettings();
   const open = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major' })] };
@@ -70,7 +70,7 @@ test('AC8: incident state is kept through failures', () => {
   assert.ok(state.pages[PAGE.pageKey].incidents.o1, 'incident state survives the failure');
 });
 
-test('AC8: one broken page does not stop the others', () => {
+test('one broken page does not stop the others', () => {
   const pages = [
     { pageKey: 'https://good.example', label: 'Good', apiUrl: 'https://good.example/api/v2/incidents.json' },
     { pageKey: 'https://bad.example', label: 'Bad', apiUrl: 'https://bad.example/api/v2/incidents.json' },
@@ -88,11 +88,11 @@ test('AC8: one broken page does not stop the others', () => {
   assert.deepEqual(labels, ['Bad', 'Good']);
 });
 
-test('AC8: an error item is handled without throwing', () => {
+test('an error item is handled without throwing', () => {
   assert.doesNotThrow(() => detect(errorResponse('socket hang up'), defaultSettings(), { pages: {} }));
 });
 
-test('AC8: a corrupt non-numeric stored failure counter still reaches the unreachable alert (review 3 F2)', () => {
+test('a corrupt non-numeric stored failure counter still reaches the unreachable alert', () => {
   const state = { pages: { [PAGE.pageKey]: { incidents: {}, failures: 'lots', failureAlerted: false, initialised: true } } };
   const settings = defaultSettings({ failuresBeforeAlert: 3 });
   const response = httpStatusResponse(500, 'boom');

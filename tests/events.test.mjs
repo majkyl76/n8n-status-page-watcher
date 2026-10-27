@@ -1,4 +1,4 @@
-// AC6: new/updated/resolved logic. AC9: state hygiene and caps.
+// New, updated and resolved logic, plus state hygiene and caps.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,7 +33,7 @@ function detect(responses, settings, staticData) {
   });
 }
 
-test('AC6: first run with only resolved incidents yields no events but stores state', () => {
+test('first run with only resolved incidents yields no events but stores state', () => {
   const body = { page: {}, incidents: [incident({ id: 'r1', status: 'resolved', impact: 'minor' })] };
   const state = { pages: {} };
   const out = detect([okResponse(body)], defaultSettings(), state);
@@ -44,7 +44,7 @@ test('AC6: first run with only resolved incidents yields no events but stores st
   assert.equal(ps.incidents.r1.notified, false);
 });
 
-test('AC6: an unresolved incident on the first run yields one new event', () => {
+test('an unresolved incident on the first run yields one new event', () => {
   const body = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major' })] };
   const state = { pages: {} };
   const out = detect([okResponse(body)], defaultSettings(), state);
@@ -52,7 +52,7 @@ test('AC6: an unresolved incident on the first run yields one new event', () => 
   assert.equal(state.pages[PAGE.pageKey].incidents.o1.notified, true);
 });
 
-test('AC6: a repeat run with no change yields no events', () => {
+test('a repeat run with no change yields no events', () => {
   const body = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major' })] };
   const state = { pages: {} };
   detect([okResponse(body)], defaultSettings(), state);
@@ -60,7 +60,7 @@ test('AC6: a repeat run with no change yields no events', () => {
   assert.equal(out.length, 0);
 });
 
-test('AC6: a changed updated_at or status yields an update event', () => {
+test('a changed updated_at or status yields an update event', () => {
   const state = { pages: {} };
   const first = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })] };
   detect([okResponse(first)], defaultSettings(), state);
@@ -69,7 +69,7 @@ test('AC6: a changed updated_at or status yields an update event', () => {
   assert.deepEqual(eventTypes(out), ['update']);
 });
 
-test('AC6: resolution yields one resolved event and then none', () => {
+test('resolution yields one resolved event and then none', () => {
   const state = { pages: {} };
   const open = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })] };
   detect([okResponse(open)], defaultSettings(), state);
@@ -80,7 +80,7 @@ test('AC6: resolution yields one resolved event and then none', () => {
   assert.equal(out2.length, 0, 'no repeat resolution');
 });
 
-test('AC6: alertOnResolved false suppresses resolved events', () => {
+test('alertOnResolved false suppresses resolved events', () => {
   const state = { pages: {} };
   const open = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })] };
   detect([okResponse(open)], defaultSettings({ alertOnResolved: false }), state);
@@ -89,7 +89,7 @@ test('AC6: alertOnResolved false suppresses resolved events', () => {
   assert.equal(out.length, 0);
 });
 
-test('AC6: resolved events are suppressed for never-notified incidents', () => {
+test('resolved events are suppressed for never-notified incidents', () => {
   // Incident below the impact filter is seen, stored but never notified. When it
   // later resolves, no resolution email (we never told the user about it).
   const state = { pages: {} };
@@ -103,8 +103,8 @@ test('AC6: resolved events are suppressed for never-notified incidents', () => {
   assert.equal(out.length, 0, 'no resolution for a never-notified incident');
 });
 
-test('AC6: real fixtures are all resolved so first run emits nothing', () => {
-  for (const name of ['githubstatus.incidents.json', 'cloudflarestatus.incidents.json', 'status feed.incidents.json']) {
+test('real fixtures are all resolved so first run emits nothing', () => {
+  for (const name of ['githubstatus.incidents.json', 'cloudflarestatus.incidents.json', 'npm.incidents.json']) {
     const body = loadFixture(name);
     const state = { pages: {} };
     const out = detect([okResponse(body)], defaultSettings(), state);
@@ -113,7 +113,7 @@ test('AC6: real fixtures are all resolved so first run emits nothing', () => {
   }
 });
 
-test('AC9: state is pruned to incident ids present in the latest response', () => {
+test('state is pruned to incident ids present in the latest response', () => {
   const state = { pages: {} };
   const first = { page: {}, incidents: [incident({ id: 'a', status: 'investigating', impact: 'major' }), incident({ id: 'b', status: 'investigating', impact: 'major' })] };
   detect([okResponse(first)], defaultSettings(), state);
@@ -123,7 +123,7 @@ test('AC9: state is pruned to incident ids present in the latest response', () =
   assert.deepEqual(ids, ['b'], 'incident a pruned');
 });
 
-test('AC9: per-page cap and the "+N more" line', () => {
+test('per-page cap and the "+N more" line', () => {
   const incidents = [];
   for (let i = 0; i < 15; i++) {
     incidents.push(incident({ id: 'n' + i, status: 'investigating', impact: 'major', name: 'Incident ' + i }));
@@ -138,7 +138,7 @@ test('AC9: per-page cap and the "+N more" line', () => {
   assert.equal(Object.keys(state.pages[PAGE.pageKey].incidents).length, 15);
 });
 
-test('AC9: two pages with identical incident ids never collide', () => {
+test('two pages with identical incident ids never collide', () => {
   const pages = [
     { pageKey: 'https://a.example', label: 'A', apiUrl: 'https://a.example/api/v2/incidents.json' },
     { pageKey: 'https://b.example', label: 'B', apiUrl: 'https://b.example/api/v2/incidents.json' },
@@ -151,7 +151,7 @@ test('AC9: two pages with identical incident ids never collide', () => {
   assert.ok(state.pages['https://b.example'].incidents.shared);
 });
 
-test('AC9: running twice with the same input produces no repeated events', () => {
+test('running twice with the same input produces no repeated events', () => {
   const body = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major' })] };
   const state = { pages: {} };
   const first = detect([okResponse(body)], defaultSettings(), state);
@@ -160,7 +160,7 @@ test('AC9: running twice with the same input produces no repeated events', () =>
   assert.equal(second.length, 0);
 });
 
-test('AC9: odd keys like __proto__ and constructor do not pollute or break', () => {
+test('odd keys like __proto__ and constructor do not pollute or break', () => {
   const state = { pages: {} };
   const body = {
     page: {},
@@ -177,7 +177,7 @@ test('AC9: odd keys like __proto__ and constructor do not pollute or break', () 
   assert.ok(Object.hasOwn(state.pages[PAGE.pageKey].incidents, '__proto__'));
 });
 
-test('AC9: odd page labels do not break the run', () => {
+test('odd page labels do not break the run', () => {
   const pages = [{ pageKey: 'https://odd.example', label: '__proto__', apiUrl: 'https://odd.example/api/v2/incidents.json' }];
   const body = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major' })] };
   const out = runDetect(workflow, { pages, responses: [okResponse(body)], settings: defaultSettings(), staticData: { pages: {} } });
@@ -185,7 +185,7 @@ test('AC9: odd page labels do not break the run', () => {
   assert.equal(out[0].json.label, '__proto__');
 });
 
-test('AC9: a null stored incident record is treated as first-seen, not a crash (review 2 F2)', () => {
+test('a null stored incident record is treated as first-seen, not a crash', () => {
   const state = { pages: { [PAGE.pageKey]: { incidents: { a: null }, failures: 0, failureAlerted: false, initialised: true } } };
   const body = { page: {}, incidents: [incident({ id: 'a', status: 'investigating', impact: 'major' })] };
   const out = detect([okResponse(body)], defaultSettings(), state);
@@ -193,7 +193,7 @@ test('AC9: a null stored incident record is treated as first-seen, not a crash (
   assert.equal(state.pages[PAGE.pageKey].incidents.a.notified, true);
 });
 
-test('AC9: a string stored incident record is treated as first-seen, not a crash (review 2 F2)', () => {
+test('a string stored incident record is treated as first-seen, not a crash', () => {
   const state = { pages: { [PAGE.pageKey]: { incidents: { a: 'stale-from-an-old-schema' }, failures: 0, failureAlerted: false, initialised: true } } };
   const body = { page: {}, incidents: [incident({ id: 'a', status: 'investigating', impact: 'major' })] };
   const out = detect([okResponse(body)], defaultSettings(), state);
@@ -201,7 +201,7 @@ test('AC9: a string stored incident record is treated as first-seen, not a crash
   assert.equal(state.pages[PAGE.pageKey].incidents.a.notified, true);
 });
 
-test('AC15: a resolved incident first seen as history, then edited later, emits nothing', () => {
+test('a resolved incident first seen as history, then edited later, emits nothing', () => {
   const state = { pages: {} };
   const resolvedAt = (updated) => ({ page: {}, incidents: [incident({ id: 'h1', status: 'resolved', impact: 'major', updated_at: updated, resolved_at: '2026-10-27T09:00:00Z' })] });
   assert.equal(detect([okResponse(resolvedAt('2026-10-27T09:00:00Z'))], defaultSettings(), state).length, 0);
@@ -210,7 +210,7 @@ test('AC15: a resolved incident first seen as history, then edited later, emits 
   assert.equal(state.pages[PAGE.pageKey].incidents.h1.notified, false);
 });
 
-test('AC15: an incident alerted as open and then resolved still emits one resolved event', () => {
+test('an incident alerted as open and then resolved still emits one resolved event', () => {
   const state = { pages: {} };
   const open = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })] };
   detect([okResponse(open)], defaultSettings(), state);
@@ -219,7 +219,7 @@ test('AC15: an incident alerted as open and then resolved still emits one resolv
   assert.equal(detect([okResponse(done)], defaultSettings(), state).length, 0);
 });
 
-test('AC15: an incident that never passed the filter while open does not emit resolved', () => {
+test('an incident that never passed the filter while open does not emit resolved', () => {
   const state = { pages: {} };
   const settings = defaultSettings({ minimumImpact: 'major' });
   const open = { page: {}, incidents: [incident({ id: 'm1', status: 'investigating', impact: 'minor', updated_at: '2026-10-27T10:00:00Z' })] };
@@ -228,14 +228,14 @@ test('AC15: an incident that never passed the filter while open does not emit re
   assert.equal(detect([okResponse(done)], settings, state).length, 0);
 });
 
-test('AC15: resolved history then a later updated_at while still resolved gives no event (F-A)', () => {
+test('resolved history then a later updated_at while still resolved gives no event', () => {
   const state = { pages: {} };
   const resolvedAt = (updated) => ({ page: {}, incidents: [incident({ id: 'h1', status: 'resolved', impact: 'major', updated_at: updated, resolved_at: '2026-10-27T09:00:00Z' })] });
   assert.equal(detect([okResponse(resolvedAt('2026-10-27T09:00:00Z'))], defaultSettings(), state).length, 0, 'first seen as history');
   assert.equal(detect([okResponse(resolvedAt('2026-10-27T11:00:00Z'))], defaultSettings(), state).length, 0, 'later edit of unnotified history');
 });
 
-test('AC15: an alerted open incident resolves once, then moves to postmortem, then gets a later edit: only the first resolved fires (F-A)', () => {
+test('an alerted open incident resolves once, then moves to postmortem, then gets a later edit: only the first resolved fires', () => {
   const state = { pages: {} };
   const open = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })] };
   detect([okResponse(open)], defaultSettings(), state);
@@ -252,7 +252,7 @@ test('AC15: an alerted open incident resolves once, then moves to postmortem, th
   assert.equal(detect([okResponse(laterEdit)], defaultSettings(), state).length, 0, 'a later edit while already resolved must not re-alert');
 });
 
-test('AC15: a genuine reopen (stored status open) followed by re-resolve still emits exactly one resolved', () => {
+test('a genuine reopen (stored status open) followed by re-resolve still emits exactly one resolved', () => {
   const state = { pages: {} };
   const open = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })] };
   detect([okResponse(open)], defaultSettings(), state);
@@ -267,7 +267,7 @@ test('AC15: a genuine reopen (stored status open) followed by re-resolve still e
   assert.equal(detect([okResponse(reResolved)], defaultSettings(), state).length, 0, 'no repeat after that');
 });
 
-test('AC16: an older updated_at than the stored one emits nothing and does not move state back', () => {
+test('an older updated_at than the stored one emits nothing and does not move state back', () => {
   const state = { pages: {} };
   const at = (u) => ({ page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: u })] });
   detect([okResponse(at('2026-10-27T11:00:00Z'))], defaultSettings(), state);
@@ -277,7 +277,7 @@ test('AC16: an older updated_at than the stored one emits nothing and does not m
   assert.equal(detect([okResponse(at('2026-10-27T11:00:00Z'))], defaultSettings(), state).length, 0, 'no flip-flop alert when the newer value returns');
 });
 
-test('AC16: a strictly later updated_at, or a changed status or impact, still counts', () => {
+test('a strictly later updated_at, or a changed status or impact, still counts', () => {
   const state = { pages: {} };
   const at = (u, status, impact) => ({ page: {}, incidents: [incident({ id: 'o1', status: status || 'investigating', impact: impact || 'major', updated_at: u })] });
   detect([okResponse(at('2026-10-27T10:00:00Z'))], defaultSettings(), state);
@@ -286,7 +286,7 @@ test('AC16: a strictly later updated_at, or a changed status or impact, still co
   assert.deepEqual(eventTypes(detect([okResponse(at('2026-10-27T10:30:00Z', 'identified', 'critical'))], defaultSettings(), state)), ['update'], 'impact change counts');
 });
 
-test('AC16: a missing updated_at does not alert and does not overwrite the stored timestamp', () => {
+test('a missing updated_at does not alert and does not overwrite the stored timestamp', () => {
   const state = { pages: {} };
   const present = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })] };
   const missing = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: undefined })] };
@@ -296,7 +296,7 @@ test('AC16: a missing updated_at does not alert and does not overwrite the store
   assert.equal(detect([okResponse(present)], defaultSettings(), state).length, 0, 'the same timestamp returning must not re-alert');
 });
 
-test('AC6: a reopened incident (resolved then investigating again) emits an update if it passes the filter', () => {
+test('a reopened incident (resolved then investigating again) emits an update if it passes the filter', () => {
   const state = { pages: {} };
   const open = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })] };
   detect([okResponse(open)], defaultSettings(), state);

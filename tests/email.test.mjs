@@ -1,4 +1,4 @@
-// AC10: email subject and body content, escaping, length limits.
+// Email subject and body content, escaping, length limits.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,7 +20,7 @@ function detectOne(body, settings) {
   return out[0].json;
 }
 
-test('AC10: subject follows the format and stays under 150 chars with no newlines', () => {
+test('subject follows the format and stays under 150 chars with no newlines', () => {
   const body = { page: {}, incidents: [incident({ id: 'o1', name: 'API errors', status: 'investigating', impact: 'major' })] };
   const email = detectOne(body);
   assert.match(email.subject, /^\[Status\] X: new incident - API errors$/);
@@ -28,7 +28,7 @@ test('AC10: subject follows the format and stays under 150 chars with no newline
   assert.ok(!email.subject.includes('\n'));
 });
 
-test('AC10: subject pluralises and names the most severe event', () => {
+test('subject pluralises and names the most severe event', () => {
   const body = {
     page: {},
     incidents: [
@@ -40,13 +40,13 @@ test('AC10: subject pluralises and names the most severe event', () => {
   assert.match(email.subject, /^\[Status\] X: 2 events - Big outage$/);
 });
 
-test('AC10: a very long title keeps the subject under 150 chars', () => {
+test('a very long title keeps the subject under 150 chars', () => {
   const body = { page: {}, incidents: [incident({ id: 'o1', name: 'z'.repeat(300), status: 'investigating', impact: 'major' })] };
   const email = detectOne(body);
   assert.ok(email.subject.length < 150, 'subject length ' + email.subject.length);
 });
 
-test('AC17: subject is at most 149 characters for titles of every length around the limit', () => {
+test('subject is at most 149 characters for titles of every length around the limit', () => {
   for (const len of [100, 130, 135, 136, 137, 140, 145, 149, 150, 151, 300]) {
     const body = { page: {}, incidents: [incident({ id: 'o1', name: 'z'.repeat(len), status: 'investigating', impact: 'major' })] };
     const email = detectOne(body);
@@ -55,7 +55,7 @@ test('AC17: subject is at most 149 characters for titles of every length around 
   }
 });
 
-test('AC17: subject is at most 149 for a contiguous range of title lengths (hits the exact-150 boundary)', () => {
+test('subject is at most 149 for a contiguous range of title lengths (hits the exact-150 boundary)', () => {
   // The spec says "at most 149 for any title". A title whose subject lands on
   // exactly 150 is the one the "> 149" guard must catch (a "> 150" guard lets it
   // through). Sweep a contiguous range so the boundary is hit whatever the prefix.
@@ -66,7 +66,7 @@ test('AC17: subject is at most 149 for a contiguous range of title lengths (hits
   }
 });
 
-test('AC17: update text in the email is at most 500 characters including the ellipsis', () => {
+test('update text in the email is at most 500 characters including the ellipsis', () => {
   const bodies = ['word '.repeat(300), 'x'.repeat(900), 'a'.repeat(499) + ' ' + 'b'.repeat(50), 'w'.repeat(500), 'w'.repeat(501)];
   for (const text of bodies) {
     const inc = incident({ id: 'o1', status: 'investigating', impact: 'major', incident_updates: [{ id: 'u', status: 'investigating', body: text, created_at: '2026-10-27T10:30:00Z' }] });
@@ -78,7 +78,7 @@ test('AC17: update text in the email is at most 500 characters including the ell
   }
 });
 
-test('AC17: truncating a long title never leaves a lone (split) surrogate in the subject', () => {
+test('truncating a long title never leaves a lone (split) surrogate in the subject', () => {
   // An emoji is a surrogate pair (two UTF-16 code units). If the 149-char cut
   // lands between the halves, a naive slice leaves a dangling half-character.
   // Sweep pads so the pair straddles the cut at every offset.
@@ -92,7 +92,7 @@ test('AC17: truncating a long title never leaves a lone (split) surrogate in the
   }
 });
 
-test('AC17: the HTML hard-cut of a single oversized event never leaves a lone surrogate (review 3 F1)', () => {
+test('the HTML hard-cut of a single oversized event never leaves a lone surrogate', () => {
   const name = 'A'.repeat(19860) + '\u{1F600}' + 'B'.repeat(50);
   const body = { page: {}, incidents: [incident({ id: 'o1', name, status: 'investigating', impact: 'critical' })] };
   const email = detectOne(body, defaultSettings({ maxIncidentsPerPage: 10 }));
@@ -107,7 +107,7 @@ test('AC17: the HTML hard-cut of a single oversized event never leaves a lone su
   }
 });
 
-test('AC10: an entity-only update body produces no blank "Update:" line', () => {
+test('an entity-only update body produces no blank "Update:" line', () => {
   const inc = incident({ id: 'o1', status: 'investigating', impact: 'major', incident_updates: [{ id: 'u', status: 'investigating', body: '&nbsp;&nbsp;', created_at: '2026-10-27T10:30:00Z' }] });
   const email = detectOne({ page: {}, incidents: [inc] });
   const line = email.text.split('\n').find((l) => l.includes('Update:'));
@@ -122,7 +122,7 @@ const subjectCases = [
   ['resolved', { prev: { status: 'investigating', updated_at: '2026-10-27T10:00:00Z' }, next: { status: 'resolved', updated_at: '2026-10-27T11:00:00Z' }, expect: /^\[Status\] X: resolved - Example incident$/ }],
 ];
 for (const [name, c] of subjectCases) {
-  test('AC17: subject names the event type for a single ' + name + ' event', () => {
+  test('subject names the event type for a single ' + name + ' event', () => {
     const state = { pages: {} };
     const run = (fields) => runDetect(workflow, {
       pages: [PAGE], responses: [okResponse({ page: {}, incidents: [incident(Object.assign({ id: 'o1', impact: 'major' }, fields))] })],
@@ -135,7 +135,7 @@ for (const [name, c] of subjectCases) {
   });
 }
 
-test('AC17: subject says "N events" when the types are mixed', () => {
+test('subject says "N events" when the types are mixed', () => {
   const state = { pages: {} };
   const run = (incidents) => runDetect(workflow, { pages: [PAGE], responses: [okResponse({ page: {}, incidents })], settings: defaultSettings(), staticData: state });
   run([incident({ id: 'a', status: 'investigating', impact: 'major', updated_at: '2026-10-27T10:00:00Z' })]);
@@ -147,7 +147,7 @@ test('AC17: subject says "N events" when the types are mixed', () => {
   assert.match(out[0].json.subject, /^\[Status\] X: 2 events - /);
 });
 
-test('AC10: body lists event type, impact, status, components, update, times and link', () => {
+test('body lists event type, impact, status, components, update, times and link', () => {
   const body = {
     page: {},
     incidents: [incident({
@@ -169,13 +169,13 @@ test('AC10: body lists event type, impact, status, components, update, times and
   assert.match(email.text, /Link: https:\/\/stspg\.io\/abc/);
 });
 
-test('AC10: link falls back to origin + /incidents/<id> when no shortlink', () => {
+test('link falls back to origin + /incidents/<id> when no shortlink', () => {
   const body = { page: {}, incidents: [incident({ id: 'xyz', name: 'No link', status: 'investigating', impact: 'major', shortlink: undefined })] };
   const email = detectOne(body);
   assert.match(email.text, /Link: https:\/\/x\.example\/incidents\/xyz/);
 });
 
-test('AC10: update text is cut to 500 chars at a word boundary', () => {
+test('update text is cut to 500 chars at a word boundary', () => {
   const longBody = ('word '.repeat(400)).trim(); // 2000 chars of words
   const body = { page: {}, incidents: [incident({ id: 'o1', status: 'investigating', impact: 'major', incident_updates: [{ id: 'u', status: 'investigating', body: longBody }] })] };
   const email = detectOne(body);
@@ -187,7 +187,7 @@ test('AC10: update text is cut to 500 chars at a word boundary', () => {
   assert.ok(!text.slice(0, -3).endsWith(' '), 'cut at a word boundary');
 });
 
-test('AC10: HTML body escapes hostile dynamic text', () => {
+test('HTML body escapes hostile dynamic text', () => {
   const body = {
     page: {},
     incidents: [incident({
@@ -202,7 +202,7 @@ test('AC10: HTML body escapes hostile dynamic text', () => {
   assert.ok(email.html.includes('&quot;') || email.html.includes('&#39;'), 'quotes are escaped');
 });
 
-test('AC10: plain-text body contains no HTML tags', () => {
+test('plain-text body contains no HTML tags', () => {
   const body = {
     page: {},
     incidents: [incident({
@@ -214,7 +214,7 @@ test('AC10: plain-text body contains no HTML tags', () => {
   assert.ok(!/<[a-z/][^>]*>/i.test(email.text), 'no HTML tags in the plain-text body');
 });
 
-test('AC10: both bodies stay under 20000 characters', () => {
+test('both bodies stay under 20000 characters', () => {
   const incidents = [];
   for (let i = 0; i < 10; i++) {
     incidents.push(incident({ id: 'n' + i, name: 'Incident ' + i, status: 'investigating', impact: 'major', incident_updates: [{ id: 'u', status: 'investigating', body: 'x'.repeat(2000) }] }));
@@ -224,14 +224,14 @@ test('AC10: both bodies stay under 20000 characters', () => {
   assert.ok(email.html.length < 20000, 'html under 20000');
 });
 
-test('AC10: a 30000 character title still leaves both bodies strictly under 20000 characters (F-B)', () => {
+test('a 30000 character title still leaves both bodies strictly under 20000 characters', () => {
   const body = { page: {}, incidents: [incident({ id: 'o1', name: 'T'.repeat(30000), status: 'investigating', impact: 'major' })] };
   const email = detectOne(body);
   assert.ok(email.text.length < 20000, 'text length ' + email.text.length);
   assert.ok(email.html.length < 20000, 'html length ' + email.html.length);
 });
 
-test('AC10: the HTML cap does not leave a dangling tag or entity at the cut (F-B)', () => {
+test('the HTML cap does not leave a dangling tag or entity at the cut', () => {
   const body = { page: {}, incidents: [incident({ id: 'o1', name: '<b>&amp;</b> '.repeat(3000), status: 'investigating', impact: 'major' })] };
   const email = detectOne(body);
   assert.ok(email.html.length < 20000, 'html length ' + email.html.length);
@@ -239,7 +239,7 @@ test('AC10: the HTML cap does not leave a dangling tag or entity at the cut (F-B
   assert.ok(!/&[a-zA-Z#0-9]*$/.test(email.html), 'must not end mid-entity: ' + JSON.stringify(email.html.slice(-30)));
 });
 
-test('AC10: a realistic multi-incident page keeps the "+N more" footer and never cuts an event mid-way (review F1)', () => {
+test('a realistic multi-incident page keeps the "+N more" footer and never cuts an event mid-way', () => {
   const incidents = [];
   for (let i = 0; i < 60; i++) {
     const title = 'Elevated error rates on the payments API in region ' + String(i).padStart(3, '0'); // ~65 chars
@@ -280,7 +280,7 @@ test('AC10: a realistic multi-incident page keeps the "+N more" footer and never
   assert.ok(/<\/ol>$/.test(email.html) || /<\/p>$/.test(email.html), 'html ends with a closed tag');
 });
 
-test('AC10: a 6500-character ampersand incident name forces the HTML fallback but the footer must survive in both bodies (review 2 F1)', () => {
+test('a 6500-character ampersand incident name forces the HTML fallback but the footer must survive in both bodies', () => {
   const incidents = [
     incident({ id: 'huge', name: '&'.repeat(6500), status: 'investigating', impact: 'critical' }),
   ];
@@ -299,7 +299,7 @@ test('AC10: a 6500-character ampersand incident name forces the HTML fallback bu
   assert.ok(!/&[a-zA-Z#0-9]*$/.test(email.html), 'html must not end mid-entity: ' + JSON.stringify(email.html.slice(-30)));
 });
 
-test('AC10: a single event whose own rendered text alone exceeds the cap still keeps the footer (review 2 F1)', () => {
+test('a single event whose own rendered text alone exceeds the cap still keeps the footer', () => {
   const incidents = [
     incident({ id: 'huge', name: 'x'.repeat(25000), status: 'investigating', impact: 'critical' }),
   ];
