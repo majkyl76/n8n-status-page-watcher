@@ -280,3 +280,11 @@ test('AC5: functional node names are at most 50 characters', () => {
     assert.ok(n.name.length <= 50, n.name + ' is <= 50 chars');
   }
 });
+
+test('Code nodes avoid globals that the n8n Code node sandbox does not provide (URL, Buffer, structuredClone)', () => {
+  // Found in the live run: `new URL(...)` threw "URL is not defined" inside n8n.
+  const wf = JSON.parse(readFileSync(new URL('../workflow.json', import.meta.url), 'utf8'));
+  for (const node of wf.nodes.filter((n) => n.type === 'n8n-nodes-base.code')) {
+    assert.doesNotMatch(node.parameters.jsCode, /\b(new URL|URLSearchParams|Buffer|structuredClone|TextEncoder|TextDecoder)\b/, node.name);
+  }
+});

@@ -77,15 +77,14 @@ for (const raw of rawLines) {
     urlText = 'https://' + urlText;
   }
 
-  let origin;
-  try {
-    origin = new URL(urlText).origin; // scheme://host[:port], drops any path or trailing slash
-  } catch (err) {
+  // The URL class is not available in the n8n Code node sandbox, so read the origin
+  // with a pattern: scheme, then everything up to the first slash, ? or #.
+  const match = /^(https?):\/\/([A-Za-z0-9.:\[\]-]+)(?:[/?#]|$)/i.exec(urlText);
+  if (!match || match[2].startsWith(':')) {
     throw new Error('Cannot read a status page URL from this line: ' + raw);
   }
-  if (origin === 'null' || !origin) {
-    throw new Error('Cannot read a status page URL from this line: ' + raw);
-  }
+  const origin = match[1].toLowerCase() + '://' + match[2].toLowerCase();
+  const host = match[2].toLowerCase();
 
   const pageKey = origin.toLowerCase();
   if (Object.hasOwn(seen, pageKey)) continue; // de-duplicate by origin
@@ -93,7 +92,7 @@ for (const raw of rawLines) {
 
   pages.push({
     pageKey: pageKey,
-    label: label || new URL(origin).host,
+    label: label || host,
     apiUrl: origin + '/api/v2/incidents.json',
   });
 }
