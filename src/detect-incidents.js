@@ -14,6 +14,7 @@ if (!staticData.pages || typeof staticData.pages !== 'object') {
 
 const RESOLVED_STATUSES = ['resolved', 'postmortem', 'completed'];
 const IMPACT_RANK = { none: 0, minor: 1, major: 2, critical: 3 };
+const MAX_BODY_CHARS = 19999; // AC10: strictly under 20000
 
 // A null-prototype map, so odd keys like "__proto__" or "constructor" become
 // plain own properties and never touch Object.prototype.
@@ -94,6 +95,19 @@ function updateText(raw) {
   // (e.g. "&nbsp;") must not leave a blank line once the entities become spaces.
   const text = decodeEntities(stripHtml(raw)).replace(/\s+/g, ' ').trim();
   return truncateWords(text, 500);
+}
+
+// Cut text to at most "max" characters, never splitting an HTML entity
+// (&amp; etc., always escaped so always terminated by ";") or landing inside
+// an open tag.
+function truncateHtml(value, max) {
+  let cut = value.slice(0, max);
+  const lastOpen = cut.lastIndexOf('<');
+  const lastClose = cut.lastIndexOf('>');
+  if (lastOpen > lastClose) cut = cut.slice(0, lastOpen);
+  const lastAmp = cut.lastIndexOf('&');
+  if (lastAmp !== -1 && cut.indexOf(';', lastAmp) === -1) cut = cut.slice(0, lastAmp);
+  return cut;
 }
 
 function uniqueNames(names) {
@@ -217,7 +231,7 @@ function renderText(label, origin, shown, hiddenCount, nowStr) {
   }
   if (hiddenCount > 0) lines.push('+' + hiddenCount + ' more events not shown');
   let out = lines.join('\n').trim();
-  if (out.length > 20000) out = out.slice(0, 20000);
+  if (out.length > MAX_BODY_CHARS) out = out.slice(0, MAX_BODY_CHARS);
   return out;
 }
 
@@ -244,7 +258,7 @@ function renderHtml(label, origin, shown, hiddenCount, nowStr) {
   parts.push('</ol>');
   if (hiddenCount > 0) parts.push('<p>+' + escapeHtml(hiddenCount) + ' more events not shown</p>');
   let out = parts.join('\n');
-  if (out.length > 20000) out = out.slice(0, 20000);
+  if (out.length > MAX_BODY_CHARS) out = truncateHtml(out, MAX_BODY_CHARS);
   return out;
 }
 
@@ -351,8 +365,10 @@ for (let i = 0; i < pageItems.length; i++) {
         let notified = prev.notified === true;
         if (changed) {
           if (resolved) {
-            // Only alert a resolution for something we told the user about.
-            if (settings.alertOnResolved && prev.notified === true) {
+            // Only alert a resolution for something we told the user about,
+            // and only once: a stored status that was already resolved
+            // (resolved/postmortem/completed) must not re-alert (AC15).
+            if (settings.alertOnResolved && prev.notified === true && !isResolved(prev.status)) {
               events.push(incidentEvent('resolved', incident, origin));
             }
           } else if (passes) {
