@@ -208,3 +208,18 @@ test('AC10: both bodies stay under 20000 characters', () => {
   assert.ok(email.text.length < 20000, 'text under 20000');
   assert.ok(email.html.length < 20000, 'html under 20000');
 });
+
+test('AC10: a 30000 character title still leaves both bodies strictly under 20000 characters (F-B)', () => {
+  const body = { page: {}, incidents: [incident({ id: 'o1', name: 'T'.repeat(30000), status: 'investigating', impact: 'major' })] };
+  const email = detectOne(body);
+  assert.ok(email.text.length < 20000, 'text length ' + email.text.length);
+  assert.ok(email.html.length < 20000, 'html length ' + email.html.length);
+});
+
+test('AC10: the HTML cap does not leave a dangling tag or entity at the cut (F-B)', () => {
+  const body = { page: {}, incidents: [incident({ id: 'o1', name: '<b>&amp;</b> '.repeat(3000), status: 'investigating', impact: 'major' })] };
+  const email = detectOne(body);
+  assert.ok(email.html.length < 20000, 'html length ' + email.html.length);
+  assert.ok(!/<[^>]*$/.test(email.html), 'must not end mid-tag: ' + JSON.stringify(email.html.slice(-30)));
+  assert.ok(!/&[a-zA-Z#0-9]*$/.test(email.html), 'must not end mid-entity: ' + JSON.stringify(email.html.slice(-30)));
+});
