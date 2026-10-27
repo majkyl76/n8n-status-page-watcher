@@ -2,7 +2,7 @@
   [
     {
       "label": "X",
-      "subject": "[Status] X: 1 new event - Database latency",
+      "subject": "[Status] X: new incident - Database latency",
       "eventCount": 1,
       "events": [
         "new"
@@ -12,7 +12,7 @@
   [
     {
       "label": "X",
-      "subject": "[Status] X: 1 new event - Database latency",
+      "subject": "[Status] X: update - Database latency",
       "eventCount": 1,
       "events": [
         "update"
@@ -22,7 +22,7 @@
   [
     {
       "label": "X",
-      "subject": "[Status] X: 1 new event - Database latency",
+      "subject": "[Status] X: resolved - Database latency",
       "eventCount": 1,
       "events": [
         "resolved"
